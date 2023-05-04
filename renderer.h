@@ -1,262 +1,300 @@
+#pragma once
+#include "./buffers.h"
+#include "./camera.h"
 #include "./shader.h"
+#include "./win.h"
 #include <GL/gl.h>
 #include <GL/glew.h>
+#include <algorithm>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/vec3.hpp>
+#include <memory>
 #include <vector>
 
-class Texture {
-  GLuint id;
-  mutable int w, h;
-
-public:
-  Texture() { glGenTextures(1, &id); }
-  Texture(const Texture &) = delete;
-  Texture operator=(const Texture &) = delete;
-  ~Texture() { glDeleteTextures(1, &id); }
-  void bind() const { glBindTexture(GL_TEXTURE_2D, id); }
-  void activate(int i = 0) const {
-    glActiveTexture(GL_TEXTURE0 + i);
-    bind();
-  }
-  int get_width() const { return w; }
-  int get_height() const { return h; }
-  void set_888(int _w, int _h) const {
-    w = _w;
-    h = _h;
-    bind();
-    param();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE,
-                 nullptr);
-  }
-  void set_11_11_10(int w, int h) const {
-    bind();
-    param();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R11F_G11F_B10F, w, h, 0, GL_RGB, GL_FLOAT,
-                 nullptr);
-  }
-  void param() const {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
-                    GL_REPEAT); // set texture wrapping to GL_REPEAT (defau
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    // set texture filtering parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    /* glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, */
-    /*                 GL_LINEAR_MIPMAP_LINEAR); */
-    /* glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); */
-  }
-  GLuint get_id() const { return id; }
-};
-
-class FBO {
-  GLuint id;
-  Texture tex;
-
-public:
-  int get_id() const { return id; };
-  FBO() { glCreateFramebuffers(1, &id); }
-  void set(int w, int h) const {
-    bind();
-    /* tex.set_11_11_10(w, h); */
-    tex.set_888(w, h);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                           tex.get_id(), 0);
-    check(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
-          "Cannot complete the frame buffer");
-    unbind();
-  }
-  FBO(const FBO &) = delete;
-  FBO operator=(const FBO &) = delete;
-  ~FBO() { glDeleteFramebuffers(1, &id); }
-  void bind() const { glBindFramebuffer(GL_FRAMEBUFFER, id); }
-  void unbind() const { glBindFramebuffer(GL_FRAMEBUFFER, 0); }
-  const Texture &get_texture() const { return tex; }
-};
-
-template <typename T> class VBO {
-  GLuint id;
-
-public:
-  VBO() { glCreateBuffers(1, &id); }
-  VBO(const VBO &) = delete;
-  VBO operator=(const VBO &) = delete;
-  ~VBO() { glDeleteBuffers(1, &id); }
-  void bind() const { glBindBuffer(GL_ARRAY_BUFFER, id); }
-  void load(const std::vector<T> &arr, GLuint usage = GL_DYNAMIC_DRAW) const {
-    bind();
-    glBufferData(GL_ARRAY_BUFFER, sizeof(T) * arr.size(),
-                 (const void *)arr.data(), usage);
-  }
-  /* GLuint get_id() const { return id; } */
-};
-
-class VAO {
-protected:
-  GLuint id;
-  GLuint layout = 0;
-
-public:
-  VAO() { glCreateVertexArrays(1, &id); }
-  void bind() const { glBindVertexArray(id); }
-  template <typename T> void link_vbo(const VBO<T> &vbo) {
-    bind();
-    vbo.bind();
-    /* glVertexArrayAttribFormat(vao_part, layout, sizeof(T), GL_FLOAT,
-     * GL_FALSE, */
-    /*                           0); */
-    /* glVertexArrayAttribBinding(vao_part, layout, 0); */
-    glVertexAttribPointer(layout, sizeof(T) / sizeof(float), GL_FLOAT, GL_FALSE,
-                          sizeof(T), nullptr);
-    glEnableVertexAttribArray(layout);
-    layout++;
-  }
-  VAO(const VAO &) = delete;
-  VAO operator=(const VAO &) = delete;
-  /* ~VAO() { glDeleteVertexArrays(1, &id); } */
-};
-
-class SumRenderer {
-  ShaderProgram sum_program;
-  VAO sum_vao;
-  VBO<glm::vec2> quad_vbo;
-
-public:
-  SumRenderer() {
-    sum_program.parse("./shaders/sum.vert");
-    sum_program.parse("./shaders/sum.frag");
-    sum_program.link();
-
-    glProgramUniform1i(sum_program.get_id(), 0, 0);
-    glProgramUniform1i(sum_program.get_id(), 1, 1);
-    glProgramUniform1i(sum_program.get_id(), 2, 2);
-    glProgramUniform1i(sum_program.get_id(), 3, 3);
-    glProgramUniform1i(sum_program.get_id(), 4, 4);
-    glProgramUniform1i(sum_program.get_id(), 5, 5);
-
-    sum_vao.link_vbo(quad_vbo);
-
-    std::vector<glm::vec2> vertices{glm::vec2{-1, -1}, glm::vec2{-1, 1},
-                                    glm::vec2{1, 1},   glm::vec2{-1, -1},
-                                    glm::vec2{1, 1},   glm::vec2{1, -1}};
-    quad_vbo.load(vertices);
-  }
-  void render(const std::vector<std::unique_ptr<FBO>> &fbos, int w, int h,
-              const FBO *fbo = nullptr) const {
-    if (fbo) {
-      fbo->bind();
-    }
-    glViewport(0, 0, w, h);
-    sum_program.use();
-    for (int i = 0; i < fbos.size(); i++) {
-      fbos[i]->get_texture().activate(i);
-    }
-    glProgramUniform1i(sum_program.get_id(), 10, fbos.size());
-    sum_vao.bind();
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    if (fbo) {
-      fbo->unbind();
-    }
-  }
-};
-
 class TextureRenderer {
-  ShaderProgram tex_program;
-  VAO tex_vao;
-  VBO<glm::vec2> quad_vbo;
+  ShaderProgram program;
+  VAO vao;
+  VBO<glm::vec2> vbo;
 
 public:
   TextureRenderer() {
-    tex_program.parse("./shaders/texture.vert");
-    tex_program.parse("./shaders/texture.frag");
-    tex_program.link();
+    program.parse("./shaders/texture.vert");
+    program.parse("./shaders/texture.frag");
+    program.link();
 
-    glProgramUniform1i(tex_program.get_id(), 0, 0);
-
-    tex_vao.link_vbo(quad_vbo);
+    vao.link_vbo(vbo);
 
     std::vector<glm::vec2> vertices{glm::vec2{-1, -1}, glm::vec2{-1, 1},
-                                    glm::vec2{1, 1},   glm::vec2{-1, -1},
-                                    glm::vec2{1, 1},   glm::vec2{1, -1}};
-    quad_vbo.load(vertices);
+                                    glm::vec2{1, 1}, glm::vec2{1, -1}};
+    vbo.load(vertices);
   }
   void render(const Texture &tex, int w, int h,
               const FBO *fbo = nullptr) const {
     if (fbo) {
       fbo->bind();
+    } else {
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
     glViewport(0, 0, w, h);
-    /* glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); */
-    /* glClearColor(0.0, 0.0, 0.0, 1.0); */
-    tex_program.use();
-    tex.activate();
-    tex_vao.bind();
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    program.use();
+    vao.bind();
+    tex.bind_texture_unit(0);
+
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     if (fbo) {
       fbo->unbind();
     }
   }
 };
 
-class TestRenderer {
-  ShaderProgram test;
-  ShaderProgram sum;
-  std::vector<std::unique_ptr<FBO>> fbos;
-  VAO test_vao;
-  int w;
-  int h;
-
-  TextureRenderer tex_rend;
-  SumRenderer sum_rend;
+class LumRenderer {
+  int w, h;
+  ShaderProgram lum;
+  FBO fbo;
+  std::unique_ptr<Texture> attach;
 
 public:
-  TestRenderer(int _w, int _h) : w{_w}, h{_h} {
-    test.parse("./shaders/test.vert");
-    test.parse("./shaders/test.frag");
-    test.link();
-
-    set_dimensions(w, h);
+  LumRenderer(int _w, int _h) {
+    lum.parse("./shaders/deferred.vert");
+    lum.parse("./shaders/lum.frag");
+    lum.link();
+    set_dimensions(_w, _h);
   }
 
   void set_dimensions(int _w, int _h) {
-    fbos.clear();
+    w = _w / 2;
+    h = _h / 2;
+    attach = std::make_unique<Texture>();
+    attach->wrap_params();
+    attach->filter_params(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR);
+    int lod = 31 - __builtin_clz(std::max(w, h));
+    attach->set(w, h, lod + 1, GL_R16F, 0, 0, nullptr);
+
+    fbo.attach_texture(*attach);
+  }
+  const Texture &get_texture() const { return *attach; }
+  void render(const Texture &initial) const {
+    glViewport(0, 0, w, h);
+    fbo.bind();
+    lum.use();
+    initial.bind_texture_unit(0);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    attach->generate_mipmap();
+  }
+};
+
+class BlurRenderer {
+  VAO vao;
+  VBO<glm::vec2> vbo;
+  FBO fbos[2];
+  std::unique_ptr<Texture> attach_textures[2];
+  int w, h;
+  ShaderProgram blur;
+  TextureRenderer rend;
+
+public:
+  BlurRenderer(int _w, int _h) {
+    blur.parse("./shaders/deferred.vert");
+    blur.parse("./shaders/blur.frag");
+    blur.link();
+    set_dimensions(_w, _h);
+
+    vao.link_vbo(vbo);
+
+    std::vector<glm::vec2> arr = {
+        glm::vec2(-1, -1),
+        glm::vec2(-1, 1),
+        glm::vec2(1, 1),
+        glm::vec2(1, -1),
+    };
+    vbo.load(arr);
+  }
+
+  const Texture &get_texture() const { return *attach_textures[1]; }
+
+  void set_dimensions(int _w, int _h) {
     w = _w;
     h = _h;
-    while (_w > 10) {
-      fbos.emplace_back(new FBO());
-      fbos.back()->set(_w, _h);
-      _w /= 2;
-      _h /= 2;
+
+    for (int i = 0; i < 2; i++) {
+      attach_textures[i] = std::make_unique<Texture>();
+      const Texture &tex = *attach_textures[i];
+      tex.filter_params();
+      tex.wrap_params();
+      tex.set(w, h, 1, GL_RGBA16F, 0, 0, nullptr);
+
+      fbos[i].attach_texture(tex);
     }
   }
 
-  VAO &get_vao() { return test_vao; }
+  void render(const Texture &initial) const {
+    glViewport(0, 0, w, h);
+    blur.use();
+    vao.bind();
 
-  void set_proj(const glm::mat4 &proj) const {
-    glProgramUniformMatrix4fv(test.get_id(), 0, 1, GL_FALSE,
-                              glm::value_ptr(proj));
+    initial.bind_texture_unit(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    fbos[0].bind();
+    glProgramUniform2i(blur.get_id(), 0, 1, 0);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    attach_textures[0]->bind_texture_unit(0);
+    fbos[1].bind();
+    glProgramUniform2i(blur.get_id(), 0, 0, 1);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+  }
+};
+
+class FlareRenderer {
+  VAO vao;
+  ShaderProgram program;
+  Texture flare_tex;
+  std::unique_ptr<Texture> attachTex;
+  TextureRenderer texRenderer;
+  FBO fbo;
+
+  int w, h;
+  mutable int tex_size = 64;
+  constexpr static float factor = 1.0;
+
+public:
+  FlareRenderer(int _w, int _h) {
+    program.parse("./shaders/flare.vert");
+    program.parse("./shaders/flare.geom");
+    program.parse("./shaders/flare.frag");
+    program.link();
+    set_dimensions(_w, _h);
+
+    std::vector<float> data = gen_flare_tex(tex_size);
+
+    flare_tex.filter_params();
+    flare_tex.set(tex_size, tex_size, 1, GL_R32F, GL_RED, GL_FLOAT,
+                  data.data());
   }
 
-  void set_view(const glm::mat4 &view) const {
-    glProgramUniformMatrix4fv(test.get_id(), 1, 1, GL_FALSE,
-                              glm::value_ptr(view));
-  }
-  void render(int size) const {
-    check(!fbos.empty(), "FBOS empty");
-    fbos[0]->bind();
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearColor(0.0, 0.0, 0.0, 1.0);
-    test.use();
-    test_vao.bind();
-    glDrawArrays(GL_POINTS, 0, size);
-    fbos[0]->unbind();
+  const Texture &get_texture() const { return *attachTex; }
 
-    for (int i = 1; i < fbos.size(); i++) {
-      int w = fbos[i]->get_texture().get_width();
-      int h = fbos[i]->get_texture().get_height();
-      tex_rend.render(fbos[i - 1]->get_texture(), w, h, fbos[i].get());
-    }
-    /* tex_rend.render(fbos[0]->get_texture(), w, h); */
-    sum_rend.render(fbos, w, h);
+  void set_size(int _size) const {
+    tex_size = _size;
+    glProgramUniform1f(program.get_id(), 4, factor);
+    glProgramUniform2f(program.get_id(), 3, tex_size / (float)w,
+                       factor * tex_size / (float)h);
+  }
+
+  void set_dimensions(int _w, int _h) {
+    w = _w;
+    h = _h;
+    attachTex = std::make_unique<Texture>();
+    attachTex->filter_params();
+    attachTex->wrap_params();
+    attachTex->set(w, h, 1, GL_RGBA16F, 0, 0, nullptr);
+
+    fbo.attach_texture(*attachTex);
+
+    program.use();
+    glProgramUniform2f(program.get_id(), 3, factor * tex_size / (float)w,
+                       factor * tex_size / (float)h);
+  }
+  const VAO &get_vao() const { return vao; }
+
+  void set_view_proj(const glm::mat4 &view_proj) const {
+    glProgramUniformMatrix4fv(program.get_id(), 0, 1, GL_FALSE,
+                              glm::value_ptr(view_proj));
+  }
+
+  void render(int n) const {
+    fbo.bind();
+    glViewport(0, 0, w, h);
+    fbo.clear_color();
+
+    program.use();
+    vao.bind();
+    flare_tex.bind_texture_unit(0);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+    glDrawArrays(GL_POINTS, 0, n);
+    glDisable(GL_BLEND);
+  }
+};
+
+class TonemapRenderer {
+  int w, h;
+  ShaderProgram tonemap;
+  FBO fbo;
+  std::unique_ptr<Texture> attach;
+
+public:
+  TonemapRenderer(int _w, int _h) {
+    tonemap.parse("./shaders/deferred.vert");
+    tonemap.parse("./shaders/tonemap.frag");
+    tonemap.link();
+    set_dimensions(_w, _h);
+  }
+
+  void set_dimensions(int _w, int _h) {
+    w = _w;
+    h = _h;
+    int lod = 31 - __builtin_clz(std::max(w / 2, h / 2));
+    glProgramUniform1i(tonemap.get_id(), 0, lod);
+
+    attach = std::make_unique<Texture>();
+    attach->set(w, h, 1, GL_RGBA8, 0, 0, nullptr);
+    fbo.attach_texture(*attach);
+  }
+
+  const Texture &get_texture() const { return *attach; }
+
+  void render(const Texture &hdr, const Texture &blur,
+              const Texture &lum) const {
+    glViewport(0, 0, w, h);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    fbo.bind();
+    tonemap.use();
+    hdr.bind_texture_unit(0);
+    blur.bind_texture_unit(1);
+    lum.bind_texture_unit(2);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+  }
+};
+
+class Renderer {
+  FlareRenderer flare_renderer;
+  BlurRenderer blur_renderer;
+  LumRenderer lum_renderer;
+  TonemapRenderer tonemap_renderer;
+  TextureRenderer rend;
+  int w, h;
+
+public:
+  Renderer(int _w, int _h)
+      : flare_renderer(_w, _h), blur_renderer(_w, _h), lum_renderer(_w, _h),
+        tonemap_renderer(_w, _h), w{_w}, h{_h} {}
+
+  void set_dimensions(int _w, int _h) {
+    w = _w;
+    h = _h;
+    flare_renderer.set_dimensions(w, h);
+    blur_renderer.set_dimensions(w, h);
+    lum_renderer.set_dimensions(w, h);
+    tonemap_renderer.set_dimensions(w, h);
+  }
+  LumRenderer &get_lum_renderer() { return lum_renderer; }
+  BlurRenderer &get_blur_renderer() { return blur_renderer; }
+  const TonemapRenderer &get_tone_renderer() const { return tonemap_renderer; }
+  const FlareRenderer &get_flare_renderer() const { return flare_renderer; }
+
+  void render(int n) const {
+    flare_renderer.render(n);
+    blur_renderer.render(flare_renderer.get_texture());
+    lum_renderer.render(flare_renderer.get_texture());
+
+    tonemap_renderer.render(flare_renderer.get_texture(),
+                            blur_renderer.get_texture(),
+                            lum_renderer.get_texture());
+    rend.render(blur_renderer.get_texture(), w, h);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 };

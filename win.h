@@ -1,10 +1,28 @@
 #pragma once
+
+#include "./renderer.h"
+
+#define IMGUI
+
+#ifdef IMGUI
+#include "./imgui/imgui.h"
+#include "./imgui/imgui_impl_glfw.h"
+#include "./imgui/imgui_impl_opengl3.h"
+#endif
+
 #include "./utils.h"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/vec3.hpp>
+#include <memory>
+
+#include "./buffers.h"
 #include <iostream>
 #include <vector>
+
+#ifdef IMGUI
+static ImGuiIO *inp = nullptr;
+#endif
 
 class Input {
 public:
@@ -13,6 +31,7 @@ public:
   double mouse_pos[2] = {0};
   double d_mouse_pos[2] = {0};
   char keys[350] = {0};
+  bool hovered = false;
 };
 
 static Input input;
@@ -51,14 +70,17 @@ static void cursor_enter_callback(GLFWwindow *window, int entered) {
 
 static void mouse_button_callback(GLFWwindow *window, int button, int action,
                                   int mods) {
-  input.mouse_buttons[button] = action;
+  /* inp->BackendPlatformName */
+  if (input.hovered)
+    input.mouse_buttons[button] = action;
 }
 
 static void scroll_callback(GLFWwindow *window, double xoffset,
                             double yoffset) {
+  if (!input.hovered)
+    return;
   input.scroll[0] = xoffset;
   input.scroll[1] = yoffset;
-  /* std::cout << xoffset << ' ' << yoffset << "\n"; */
 }
 
 class App {
@@ -67,6 +89,16 @@ class App {
   static constexpr glm::vec3 color{0, 0, 0};
 
   int w, h;
+#ifdef IMGUI
+  void new_frame() const {
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    ImGui::DockSpaceOverViewport();
+  }
+#else
+  std::unique_ptr<TextureRenderer> tex_renderer;
+#endif
 
 public:
   void handle(Input *input) {
@@ -80,6 +112,7 @@ public:
     window = glfwCreateWindow(w, h, title, NULL, NULL);
     check(window, "Cannot create a window");
     glfwMakeContextCurrent(window);
+    vsync(true);
     glfwSetInputMode(window, GLFW_STICKY_KEYS, 1);
     /* glfwSetInputMode(window, GLFW_STICKY_MOUSE_BUTTONS, 1); */
     glfwSetKeyCallback(window, key_callback);
@@ -91,8 +124,37 @@ public:
     glewExperimental = GL_TRUE;
     check(glewInit() == GLEW_OK, "Cannot initlialize glew");
 
+#ifdef IMGUI
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    inp = &ImGui::GetIO();
+    (void)inp;
+    /* inp->ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; */
+    /*  */
+    /* inp->ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; */
+    /* inp->ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; */
+    inp->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    /* inp->ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; */
+
+    /*  */
+    /* inp->BackendFlags |= ImGuiBackendFlags_HasMouseCursors; */
+    /* inp->BackendFlags |= ImGuiBackendFlags_HasSetMousePos; */
+    /* inp->BackendFlags |= ImGuiBackendFlags_HasMouseHoveredViewport; */
+    ImGui::StyleColorsDark();
+    ImGuiStyle &style = ImGui::GetStyle();
+    if (inp->ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+      style.WindowRounding = 0.0f;
+      style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 460 core");
     glViewport(0, 0, w, h);
-    glPointSize(2);
+
+    new_frame();
+#else
+    tex_renderer = std::make_unique<TextureRenderer>();
+    glViewport(0, 0, w, h);
+#endif
   }
   App(const App &) = delete;
   App operator=(const App &) = delete;
@@ -101,12 +163,25 @@ public:
     glfwSetFramebufferSizeCallback(window, callback);
   }
 
+  void vsync(bool value) const { glfwSwapInterval(value); }
+
   void set_dimensions(int _w, int _h) {
     w = _w;
     h = _h;
     glViewport(0, 0, w, h);
   }
   bool should_close() const {
+#ifdef IMGUI
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    if (inp->ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+      GLFWwindow *backup_current_context = glfwGetCurrentContext();
+      ImGui::UpdatePlatformWindows();
+      ImGui::RenderPlatformWindowsDefault();
+      glfwMakeContextCurrent(backup_current_context);
+    }
+#endif
+
     glfwSwapBuffers(window);
     if (input.keys[GLFW_KEY_ESCAPE] == GLFW_PRESS) {
       glfwSetWindowShouldClose(window, true);
@@ -115,10 +190,21 @@ public:
     glfwPollEvents();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(color.x, color.y, color.z, 1.0);
-    return glfwWindowShouldClose(window);
+    bool out = glfwWindowShouldClose(window);
+#ifdef IMGUI
+    new_frame();
+#endif
+    return out;
   }
 
-  ~App() { glfwDestroyWindow(window); }
+  ~App() {
+#ifdef IMGUI
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+#endif
+    glfwDestroyWindow(window);
+  }
 };
 
 class Init {
@@ -131,7 +217,7 @@ public:
     check(glfwInit() == GLFW_TRUE, "Cannot initialize the window");
     glfwSetErrorCallback(error_callback);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     /* glfwWindowHint(GLFW_RESIZABLE, GL_FALSE); */

@@ -1,4 +1,5 @@
 #pragma once
+#include "./barnes-hut.h"
 #include "./buffers.h"
 #include "./camera.h"
 #include "./shader.h"
@@ -22,7 +23,7 @@ public:
     program.parse("./shaders/texture.frag");
     program.link();
 
-    vao.link_vbo(vbo);
+    vao.link_vbo(vbo, 0);
 
     std::vector<glm::vec2> vertices{glm::vec2{-1, -1}, glm::vec2{-1, 1},
                                     glm::vec2{1, 1}, glm::vec2{1, -1}};
@@ -99,7 +100,7 @@ public:
     blur.link();
     set_dimensions(_w, _h);
 
-    vao.link_vbo(vbo);
+    vao.link_vbo(vbo, 0);
 
     std::vector<glm::vec2> arr = {
         glm::vec2(-1, -1),
@@ -149,8 +150,8 @@ class FlareRenderer {
   VAO vao;
   ShaderProgram program;
   Texture flare_tex;
-  std::unique_ptr<Texture> attachTex;
-  TextureRenderer texRenderer;
+  std::unique_ptr<Texture> attach;
+  std::unique_ptr<Texture> depth;
   FBO fbo;
 
   int w, h;
@@ -172,7 +173,8 @@ public:
                   data.data());
   }
 
-  const Texture &get_texture() const { return *attachTex; }
+  const Texture &get_texture() const { return *attach; }
+  const Texture &get_depth() const { return *depth; }
 
   void set_size(int _size) const {
     tex_size = _size;
@@ -184,12 +186,16 @@ public:
   void set_dimensions(int _w, int _h) {
     w = _w;
     h = _h;
-    attachTex = std::make_unique<Texture>();
-    attachTex->filter_params();
-    attachTex->wrap_params();
-    attachTex->set(w, h, 1, GL_RGBA16F, 0, 0, nullptr);
+    attach = std::make_unique<Texture>();
+    attach->filter_params();
+    attach->wrap_params();
+    attach->set(w, h, 1, GL_RGBA16F, 0, 0, nullptr);
 
-    fbo.attach_texture(*attachTex);
+    depth = std::make_unique<Texture>();
+    depth->set(w, h, 1, GL_DEPTH24_STENCIL8, 0, 0, nullptr);
+
+    fbo.attach_texture(*attach);
+    fbo.attach_depth(*depth);
 
     program.use();
     glProgramUniform2f(program.get_id(), 3, factor * tex_size / (float)w,
@@ -206,6 +212,7 @@ public:
     fbo.bind();
     glViewport(0, 0, w, h);
     fbo.clear_color();
+    fbo.clear_depth();
 
     program.use();
     vao.bind();
@@ -245,6 +252,7 @@ public:
   }
 
   const Texture &get_texture() const { return *attach; }
+  const FBO &get_fbo() const { return fbo; }
 
   void render(const Texture &hdr, const Texture &blur,
               const Texture &lum) const {
@@ -295,6 +303,72 @@ public:
                             blur_renderer.get_texture(),
                             lum_renderer.get_texture());
     rend.render(blur_renderer.get_texture(), w, h);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  }
+};
+
+class BarnesHutRenderer {
+  VAO vao;
+  ShaderProgram program;
+  VBO<glm::vec3> vbo;
+  void _render(int i, const std::vector<Quadrant> &tree) const {
+    const auto &node = tree[i];
+    if (node.children) {
+      for (int k = 0; k < 8; k++)
+        _render(node.children + k, tree);
+      return;
+    }
+    glProgramUniform3f(program.get_id(), 0, node.lbf.x, node.lbf.y, node.lbf.z);
+    glProgramUniform1f(program.get_id(), 1, node.width);
+    glLineWidth(10);
+    glDrawArrays(GL_LINE_STRIP, 0, 16);
+  }
+  int w, h;
+  FBO fbo;
+  std::unique_ptr<Texture> attach;
+
+public:
+  BarnesHutRenderer(int _w, int _h) {
+    using glm::vec3;
+    program.parse("./shaders/box.vert");
+    program.parse("./shaders/box.frag");
+    program.link();
+
+    vao.link_vbo(vbo, 0);
+    std::vector<vec3> vertices = {
+        vec3{0, 0, 0}, vec3{0, 1, 0}, vec3{1, 1, 0}, vec3{1, 0, 0},
+        vec3{0, 0, 0}, vec3{0, 0, 1}, vec3{0, 1, 1}, vec3{0, 1, 0},
+        vec3{1, 1, 0}, vec3{1, 1, 1}, vec3{0, 1, 1}, vec3{0, 0, 1},
+        vec3{1, 0, 1}, vec3{1, 1, 1}, vec3{1, 0, 1}, vec3{1, 0, 0}};
+    vbo.load(vertices);
+
+    set_dimensions(_w, _h);
+  }
+  void set_dimensions(int _w, int _h) {
+    w = _w;
+    h = _h;
+    attach = std::make_unique<Texture>();
+    attach->filter_params();
+    attach->wrap_params();
+    attach->set(w, h, 1, GL_RGBA8, 0, 0, nullptr);
+    fbo.attach_texture(*attach);
+  }
+
+  void set_view_proj(const glm::mat4 &view_proj) const {
+    glProgramUniformMatrix4fv(program.get_id(), 2, 1, GL_FALSE,
+                              glm::value_ptr(view_proj));
+  }
+  const Texture &get_texture() const { return *attach; }
+  void render(const BarnesHutTree &bhtree, const FBO &_fbo) const {
+    _fbo.bind();
+    glViewport(0, 0, w, h);
+    fbo.clear_color();
+
+    program.use();
+    vao.bind();
+    program.use();
+    const auto &tree = bhtree.get_tree();
+    _render(0, tree);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 };

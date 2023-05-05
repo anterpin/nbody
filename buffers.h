@@ -49,6 +49,12 @@ public:
   ~FBO() { glDeleteFramebuffers(1, &id); }
   void bind() const { glBindFramebuffer(GL_FRAMEBUFFER, id); }
   void unbind() const { glBindFramebuffer(GL_FRAMEBUFFER, 0); }
+  void attach_depth(const Texture &tex) const {
+    glNamedFramebufferTexture(id, GL_DEPTH_ATTACHMENT, tex.get_id(), 0);
+    check(glCheckNamedFramebufferStatus(id, GL_FRAMEBUFFER) ==
+              GL_FRAMEBUFFER_COMPLETE,
+          "Cannot complete the frame buffer");
+  }
   void attach_texture(const Texture &tex) const {
     glNamedFramebufferTexture(id, GL_COLOR_ATTACHMENT0, tex.get_id(), 0);
     check(glCheckNamedFramebufferStatus(id, GL_FRAMEBUFFER) ==
@@ -58,6 +64,10 @@ public:
   void clear_color(float r = 0, float g = 0, float b = 0, float a = 1) const {
     float colors[4] = {r, g, b, a};
     glClearNamedFramebufferfv(id, GL_COLOR, 0, colors);
+  }
+  void clear_depth() const {
+    float colors[4] = {0, 0, 0, 1.0};
+    glClearNamedFramebufferfv(id, GL_DEPTH, 0, colors);
   }
 };
 
@@ -73,24 +83,27 @@ public:
   void data(const std::vector<T> &arr, GLuint usage = GL_DYNAMIC_DRAW) const {
     glNamedBufferData(id, sizeof(T) * arr.size(), arr.data(), usage);
   }
-  void load(const std::vector<T> &arr) const {
-    glNamedBufferStorage(id, sizeof(T) * arr.size(), arr.data(), 0);
+  void load(const std::vector<T> &arr, GLenum bits = 0) const {
+    glNamedBufferStorage(id, sizeof(T) * arr.size(), arr.data(), bits);
   }
   void bind_shader_storage_buffer(GLuint bind, size_t size) const {
     glBindBufferRange(GL_SHADER_STORAGE_BUFFER, bind, id, 0,
                       sizeof(glm::vec4) * size);
+  }
+  void get_data_from_gpu(std::vector<T> &arr) const {
+    glGetNamedBufferSubData(id, 0, sizeof(T) * arr.size(), arr.data());
   }
 };
 
 class VAO {
 protected:
   GLuint id;
-  mutable GLuint attrib_index = 0;
 
 public:
   VAO() { glCreateVertexArrays(1, &id); }
   void bind() const { glBindVertexArray(id); }
-  template <typename T> void link_vbo(const VBO<T> &vbo) const {
+  template <typename T>
+  void link_vbo(const VBO<T> &vbo, GLuint attrib_index) const {
     glEnableVertexArrayAttrib(id, attrib_index);
     glVertexArrayAttribBinding(id, attrib_index, attrib_index);
     glVertexArrayAttribFormat(id, attrib_index, sizeof(T) / sizeof(float),

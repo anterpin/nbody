@@ -6,7 +6,6 @@
 #include "./utils.h"
 #include "./win.h"
 #include "imgui/imgui.h"
-#include <GLFW/glfw3.h>
 #include <glm/ext/vector_float3.hpp>
 
 int main() {
@@ -30,46 +29,78 @@ int main() {
 
     std::unique_ptr<VBO<glm::vec4>> positions;
     std::unique_ptr<VBO<glm::vec4>> velocities;
+
+    VBO<float> sizes;
+    VBO<glm::vec4> com;
+    VBO<int> children;
+    VBO<int> parents;
+
     BarnesHutTree bhtree;
     BarnesHutRenderer bhrenderer(w, h);
     bhrenderer.set_view_proj(camera.get_view_proj());
 
     Value<glm::vec2> size(glm::vec2{w, h});
-    Value<int> n(100, true);
+    Value<int> n(3, true);
     Value<int> tex_size(6);
     Value<bool> sync(false);
     Value<bool> rotate(false);
     Value<float> sd(10.0, true);
     Value<float> G(0.4);
-    Value<float> damping(0.9);
+    Value<float> damping(1);
     Value<float> eps(0.4);
+    Value<float> threshold(0.5);
     Value<float> dt(0.005);
     Value<bool> interaction(false);
-    Value<bool> initial_vel(false);
+    Value<bool> initial_vel(false, true);
     Value<bool> boxes(true);
+    Value<bool> gpu(false, true);
+    Value<bool> n2(false);
 
     std::vector<glm::vec4> pos;
+    std::vector<glm::vec4> vel;
+
+    auto compute_tree = [&]() {
+      bhtree.create_tree(pos);
+      if (!n2) {
+        sizes.data(bhtree.sizes);
+        com.data(bhtree.com);
+        children.data(bhtree.children);
+        parents.data(bhtree.parents);
+
+        size_t size = bhtree.lbf.size();
+        sizes.bind_shader_storage_buffer(2, size);
+        com.bind_shader_storage_buffer(3, size);
+        children.bind_shader_storage_buffer(4, size);
+        parents.bind_shader_storage_buffer(5, size);
+      }
+    };
+
     auto init = [&]() {
       positions = std::make_unique<VBO<glm::vec4>>();
       velocities = std::make_unique<VBO<glm::vec4>>();
+      float d;
+      pos = initialize_random(n, d);
+      bhtree.set_domain(d * 3);
 
-      pos = initialize_random(n);
-      positions->load(pos, GL_CLIENT_STORAGE_BIT | GL_MAP_READ_BIT);
+      vel = initial_vel ? initialize_vel(n, sd)
+                        : std::vector<glm::vec4>(n, glm::vec4(0, 0, 0, 0));
 
-      auto vel = initial_vel ? initialize_vel(n, sd)
-                             : std::vector<glm::vec4>(n, glm::vec4(0, 0, 0, 0));
-      velocities->load(vel, GL_CLIENT_STORAGE_BIT | GL_MAP_READ_BIT);
+      if (gpu) {
+        positions->load(pos, GL_CLIENT_STORAGE_BIT | GL_MAP_READ_BIT);
+        velocities->load(vel);
+      } else {
+        positions->data(pos);
+        velocities->data(vel);
+      }
 
       positions->bind_shader_storage_buffer(0, n);
       velocities->bind_shader_storage_buffer(1, n);
 
       renderer.get_flare_renderer().get_vao().link_vbo(*positions, 0);
       renderer.get_flare_renderer().get_vao().link_vbo(*velocities, 1);
-      bhtree.create_tree(pos);
-      /* std::cout << tree.get_tree() << '\n'; */
+      compute_tree();
     };
     init();
-
     while (!app.should_close()) {
       if (size.has_changed()) {
         int w = size->x;
@@ -88,9 +119,6 @@ int main() {
         bhrenderer.set_view_proj(camera.get_view_proj());
       }
 
-      if (sd.has_changed()) {
-        init();
-      }
       if (G.has_changed()) {
         inter.set_G(G);
       }
@@ -98,19 +126,26 @@ int main() {
         inter.set_damping(damping);
       }
       if (eps.has_changed()) {
-        inter.set_eps(std::pow(eps, 1.0f / 6.0f));
+        inter.set_eps(eps);
       }
       if (dt.has_changed()) {
         inter.set_dt(dt);
       }
+      if (n2.has_changed()) {
+        inter.set_n2(n2);
+      }
 
-      if (initial_vel.has_changed()) {
+      if (threshold.has_changed()) {
+        bhtree.set_threshold(threshold);
+        inter.set_threshold(threshold);
+      }
+
+      // cannot be more than one at the same time
+      if (initial_vel.has_changed() || n.has_changed() || sd.has_changed() ||
+          gpu.has_changed()) {
         init();
       }
 
-      if (n.has_changed()) {
-        init();
-      }
       if (tex_size.has_changed()) {
         renderer.get_flare_renderer().set_size(tex_size);
       }
@@ -119,10 +154,16 @@ int main() {
         app.vsync(sync);
 
       if (interaction) {
-        inter.compute(n);
-
-        positions->get_data_from_gpu(pos);
-        bhtree.create_tree(pos);
+        if (gpu) {
+          inter.compute(n);
+          positions->get_data_from_gpu(pos);
+        } else {
+          bhtree.update_pos_and_velocities(pos, vel, G, dt);
+          positions->data(pos);
+          velocities->data(vel);
+        }
+        *&interaction = false;
+        compute_tree();
       }
 
       renderer.render(n);
@@ -132,19 +173,21 @@ int main() {
 
 #ifdef IMGUI
       ImGui::Begin("Options");
-      ImGui::Text("Just simple text");
       ImGui::Checkbox("VSync", &sync);
       ImGui::Checkbox("Rotate", &rotate);
       ImGui::Checkbox("Boxes", &boxes);
+      ImGui::Checkbox("Gpu", &gpu);
+      ImGui::Checkbox("O(n^2)", &n2);
       ImGui::Checkbox("Initial velocity", &initial_vel);
       ImGui::Checkbox("Interaction", &interaction);
-      ImGui::SliderInt("N", &n, 100, 100000);
+      ImGui::SliderInt("N", &n, 1, 8);
       ImGui::SliderInt("Size", &tex_size, 2, 32);
-      ImGui::SliderFloat("Damping", &damping, 0.0, 1.0);
+      ImGui::SliderFloat("Damping", &damping, 0.96, 1.0);
       ImGui::SliderFloat("Sd", &sd, 1.0, 30);
       ImGui::SliderFloat("G", &G, -3, 3);
       ImGui::SliderFloat("EPS squared", &eps, 0.0001, 10);
       ImGui::SliderFloat("dt", &dt, -0.01, 0.01);
+      ImGui::SliderFloat("Threshold", &threshold, 0, 1);
       ImGui::Text("Distance: %.3f", camera.get_distance());
       ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate,
                   io.Framerate);

@@ -28,14 +28,19 @@ std::vector<glm::vec4> initialize_vel(int N, float sd = 1.0) {
   return arr;
 }
 
-std::vector<glm::vec4> initialize_random(int N, float sd = 1.0, float w = 1.0) {
+float max(const glm::vec3 &v) {
+  return std::max(std::abs(v.x), std::max(std::abs(v.y), std::abs(v.z)));
+}
+
+std::vector<glm::vec4> initialize_random(int N, float &d, float sd = 1.0) {
   std::random_device r;
-  std::default_random_engine gen(r());
+  std::default_random_engine gen;
 
   std::vector<glm::vec4> arr;
   std::uniform_real_distribution<float> mean(-30, 30);
   std::normal_distribution<float> dist(0, sd);
 
+  d = 0;
   float f = 3.0;
   std::vector<glm::vec4> centers = {
       glm::vec4(10, -2, 20, 0), glm::vec4(10, 0, 0, 0),
@@ -46,12 +51,14 @@ std::vector<glm::vec4> initialize_random(int N, float sd = 1.0, float w = 1.0) {
       arr.push_back(
           glm::vec4(centers[k] + glm::vec4(f * dist(gen), f * dist(gen),
                                            f * dist(gen), 1.0)));
+      d = std::max(max(arr.back()), d);
     }
   }
   for (int i = arr.size(); i < N; i++) {
     arr.push_back(
         glm::vec4(centers.back() +
                   glm::vec4(f * dist(gen), f * dist(gen), f * dist(gen), 1.0)));
+    d = std::max(max(arr.back()), d);
   }
   return arr;
 }

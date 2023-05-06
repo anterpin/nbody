@@ -311,17 +311,22 @@ class BarnesHutRenderer {
   VAO vao;
   ShaderProgram program;
   VBO<glm::vec3> vbo;
-  void _render(int i, const std::vector<Quadrant> &tree) const {
-    const auto &node = tree[i];
-    if (node.children) {
+  void _render(int i, const std::vector<glm::vec3> &lbf,
+               const std::vector<float> &sizes,
+               const std::vector<int> &children,
+               const std::vector<glm::vec4> &com, bool contain) const {
+    const auto &node = lbf[i];
+    if (children[i]) {
       for (int k = 0; k < 8; k++)
-        _render(node.children + k, tree);
+        _render(children[i] + k, lbf, sizes, children, com, contain);
       return;
     }
-    glProgramUniform3f(program.get_id(), 0, node.lbf.x, node.lbf.y, node.lbf.z);
-    glProgramUniform1f(program.get_id(), 1, node.width);
+    glProgramUniform3f(program.get_id(), 0, lbf[i].x, lbf[i].y, lbf[i].z);
+    glProgramUniform1f(program.get_id(), 1, sizes[i]);
+    glProgramUniform1i(program.get_id(), 3, (com[i].w < 0.5) ? 0 : 1);
     glLineWidth(10);
-    glDrawArrays(GL_LINE_STRIP, 0, 16);
+    if (contain ^ (com[i].w < 0.5))
+      glDrawArrays(GL_LINE_STRIP, 0, 16);
   }
   int w, h;
   FBO fbo;
@@ -363,12 +368,11 @@ public:
     _fbo.bind();
     glViewport(0, 0, w, h);
     fbo.clear_color();
-
     program.use();
     vao.bind();
     program.use();
-    const auto &tree = bhtree.get_tree();
-    _render(0, tree);
+    _render(0, bhtree.lbf, bhtree.sizes, bhtree.children, bhtree.com, false);
+    _render(0, bhtree.lbf, bhtree.sizes, bhtree.children, bhtree.com, true);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 };

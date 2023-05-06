@@ -86,6 +86,9 @@ public:
   void load(const std::vector<T> &arr, GLenum bits = 0) const {
     glNamedBufferStorage(id, sizeof(T) * arr.size(), arr.data(), bits);
   }
+  void subload(const std::vector<T> &arr) const {
+    glNamedBufferSubData(id, 0, sizeof(T) * arr.size(), arr.data());
+  }
   void bind_shader_storage_buffer(GLuint bind, size_t size) const {
     glBindBufferRange(GL_SHADER_STORAGE_BUFFER, bind, id, 0,
                       sizeof(glm::vec4) * size);

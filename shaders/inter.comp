@@ -35,9 +35,9 @@ layout (binding = 4, std430) buffer children
   int chil[];
 };
 
-layout (binding = 5, std430) buffer parents
+layout (binding = 5, std430) buffer next
 {
-  int par[];
+  int nex[];
 };
 
 
@@ -59,13 +59,10 @@ vec3 calc_acceleration(vec3 pos) {
         if (m > 0.5) {
           acc += interact(p, pos, m);
         }
-        while (i % 8 == 0) {
-          i = par[i];
-        }
-        if (i != -1)
-          i++;
+        i = nex[i];
       } else {
         i = chil[i];
+        while (com[i].w < 0.5) i++;
       }
     }
     return acc;

@@ -35,14 +35,14 @@ class BarnesHutTree {
   float eps2 = 0.4f;
   static constexpr float MAX_DOMAIN = 1000.0f;
   static constexpr float EPS = 0.00001;
-  void insert_node(int i, const vec3 &pos, float mass = 1.0, int nex = -1) {
+  void insert_node(int i, const vec3 &pos, float mass = 1.0) {
     assert(is_inside(lbf.at(i), sizes[i], pos));
 
     if (children[i]) { // it has children
       com[i].w += mass;
       int q = children[i] + get_subquadrant(lbf[i], sizes[i], pos);
       int tmp = com[q].w;
-      insert_node(q, pos, mass, next[i]);
+      insert_node(q, pos, mass);
 
       if (tmp < 0.5) {
         next[i] = q;
@@ -54,7 +54,6 @@ class BarnesHutTree {
       com[i].x = pos.x;
       com[i].y = pos.y;
       com[i].z = pos.z;
-      next[i] = nex;
       return;
     }
     // subdivide
@@ -86,13 +85,27 @@ class BarnesHutTree {
       parents.push_back(i);
       next.push_back(0);
     }
-    insert_node(qa, vec3{com[i].x, com[i].y, com[i].z}, com[i].w, next[i]);
-    insert_node(qb, pos, mass, qa);
+    insert_node(qa, vec3{com[i].x, com[i].y, com[i].z}, com[i].w);
+    insert_node(qb, pos, mass);
     next[i] = qb;
 
     com[i].w += mass;
   }
 
+  void compute_next(int i, int nex = -1) {
+    next[i] = nex;
+    if (!children[i]) {
+      return;
+    }
+    int prev = nex;
+    for (int k = 7; k >= 0; k--) {
+      int q = children[i] + k;
+      if (com[q].w < 0.5)
+        continue;
+      compute_next(q, prev);
+      prev = q;
+    }
+  }
   void compute_com(int i) {
     if (!children[i]) {
       return;
@@ -166,15 +179,13 @@ public:
       insert_node(0, pos);
     }
     compute_com(0);
+    compute_next(0);
   }
   vec3 calc_acceleration(const vec3 &pos) const {
     int i = 0;
     vec3 acc = vec3(0);
     int rep = 0;
-    std::cout << next << '\n';
     while (i != -1) {
-      if (rep++ > 700)
-        break;
       float m = com.at(i).w;
       vec3 p = vec3{com.at(i).x, com.at(i).y, com.at(i).z};
       float d = glm::length(p - pos);
@@ -184,13 +195,13 @@ public:
         if (m > 0.5) {
           acc += a;
         }
-        std::cout << i << ' ';
         i = next.at(i);
       } else {
         i = children.at(i);
+        while (com[i].w < 0.5)
+          i++;
       }
     }
-    std::cout << std::endl;
     return acc;
   }
 

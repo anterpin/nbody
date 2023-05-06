@@ -33,7 +33,7 @@ int main() {
     VBO<float> sizes;
     VBO<glm::vec4> com;
     VBO<int> children;
-    VBO<int> parents;
+    VBO<int> next;
 
     BarnesHutTree bhtree;
     BarnesHutRenderer bhrenderer(w, h);
@@ -65,13 +65,13 @@ int main() {
         sizes.data(bhtree.sizes);
         com.data(bhtree.com);
         children.data(bhtree.children);
-        parents.data(bhtree.parents);
+        next.data(bhtree.next);
 
         size_t size = bhtree.lbf.size();
         sizes.bind_shader_storage_buffer(2, size);
         com.bind_shader_storage_buffer(3, size);
         children.bind_shader_storage_buffer(4, size);
-        parents.bind_shader_storage_buffer(5, size);
+        next.bind_shader_storage_buffer(5, size);
       }
     };
 
@@ -162,7 +162,7 @@ int main() {
           positions->data(pos);
           velocities->data(vel);
         }
-        *&interaction = false;
+        /* *&interaction = false; */
         compute_tree();
       }
 
@@ -180,7 +180,7 @@ int main() {
       ImGui::Checkbox("O(n^2)", &n2);
       ImGui::Checkbox("Initial velocity", &initial_vel);
       ImGui::Checkbox("Interaction", &interaction);
-      ImGui::SliderInt("N", &n, 1, 8);
+      ImGui::SliderInt("N", &n, 1, 50000);
       ImGui::SliderInt("Size", &tex_size, 2, 32);
       ImGui::SliderFloat("Damping", &damping, 0.96, 1.0);
       ImGui::SliderFloat("Sd", &sd, 1.0, 30);

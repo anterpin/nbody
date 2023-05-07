@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <bits/stdc++.h>
 #include <exception>
 #include <glm/ext/vector_float3.hpp>
@@ -74,6 +75,15 @@ static std::ostream &operator<<(std::ostream &os, const glm::mat4 &m) {
     os << "|\n";
   }
   return os;
+}
+
+static std::ostream &operator<<(std::ostream &os,
+                                const std::array<int, 8> &arr) {
+  os << '[';
+  for (int i = 0; i < 7; i++) {
+    os << arr[i] << ", ";
+  }
+  return os << arr.back() << ']';
 }
 
 static std::ostream &operator<<(std::ostream &os, const glm::vec2 &v) {

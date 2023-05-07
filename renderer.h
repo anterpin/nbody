@@ -310,23 +310,32 @@ public:
 class BarnesHutRenderer {
   VAO vao;
   ShaderProgram program;
+  bool red = true;
   VBO<glm::vec3> vbo;
-  void _render(int i, const std::vector<glm::vec3> &lbf,
-               const std::vector<float> &sizes,
-               const std::vector<int> &children,
-               const std::vector<glm::vec4> &com, bool contain) const {
-    const auto &node = lbf[i];
-    if (children[i]) {
-      for (int k = 0; k < 8; k++)
-        _render(children[i] + k, lbf, sizes, children, com, contain);
-      return;
+  void _render(int i, const BarnesHutTree &bh, bool contain) const {
+    for (int q = 0; q < 8; q++) {
+      if (bh.children[i][q]) {
+        _render(bh.children[i][q], bh, contain);
+      }
+      // TODO draw no existing children
+      if (bh.first_child[i] && !contain) {
+        const float hw = bh.sizes[i] / 2;
+        float x = (q & 1) ? bh.lbf[i].x + hw : bh.lbf[i].x;
+        float y = (q & 2) ? bh.lbf[i].y + hw : bh.lbf[i].y;
+        float z = (q & 4) ? bh.lbf[i].z + hw : bh.lbf[i].z;
+        glProgramUniform3f(program.get_id(), 0, x, y, z);
+        glProgramUniform1f(program.get_id(), 1, hw);
+        glProgramUniform1i(program.get_id(), 3, 0);
+        glDrawArrays(GL_LINE_STRIP, 0, 16);
+      }
     }
-    glProgramUniform3f(program.get_id(), 0, lbf[i].x, lbf[i].y, lbf[i].z);
-    glProgramUniform1f(program.get_id(), 1, sizes[i]);
-    glProgramUniform1i(program.get_id(), 3, (com[i].w < 0.5) ? 0 : 1);
-    glLineWidth(10);
-    if (contain ^ (com[i].w < 0.5))
+    if (bh.first_child[i] == 0 && contain) {
+      glProgramUniform3f(program.get_id(), 0, bh.lbf[i].x, bh.lbf[i].y,
+                         bh.lbf[i].z);
+      glProgramUniform1f(program.get_id(), 1, bh.sizes[i]);
+      glProgramUniform1i(program.get_id(), 3, 1);
       glDrawArrays(GL_LINE_STRIP, 0, 16);
+    }
   }
   int w, h;
   FBO fbo;
@@ -348,6 +357,7 @@ public:
     vbo.load(vertices);
 
     set_dimensions(_w, _h);
+    glLineWidth(10);
   }
   void set_dimensions(int _w, int _h) {
     w = _w;
@@ -358,7 +368,7 @@ public:
     attach->set(w, h, 1, GL_RGBA8, 0, 0, nullptr);
     fbo.attach_texture(*attach);
   }
-
+  void set_red(bool _red) { red = _red; }
   void set_view_proj(const glm::mat4 &view_proj) const {
     glProgramUniformMatrix4fv(program.get_id(), 2, 1, GL_FALSE,
                               glm::value_ptr(view_proj));
@@ -371,8 +381,9 @@ public:
     program.use();
     vao.bind();
     program.use();
-    _render(0, bhtree.lbf, bhtree.sizes, bhtree.children, bhtree.com, false);
-    _render(0, bhtree.lbf, bhtree.sizes, bhtree.children, bhtree.com, true);
+    if (red)
+      _render(0, bhtree, false);
+    _render(0, bhtree, true);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 };

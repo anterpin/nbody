@@ -62,7 +62,6 @@ vec3 calc_acceleration(vec3 pos) {
         i = nex[i];
       } else {
         i = chil[i];
-        while (com[i].w < 0.5) i++;
       }
     }
     return acc;

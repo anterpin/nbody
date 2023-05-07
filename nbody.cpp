@@ -53,6 +53,7 @@ int main() {
     Value<bool> interaction(false);
     Value<bool> initial_vel(false, true);
     Value<bool> boxes(true);
+    Value<bool> red(false);
     Value<bool> gpu(false, true);
     Value<bool> n2(false);
 
@@ -64,7 +65,7 @@ int main() {
       if (!n2) {
         sizes.data(bhtree.sizes);
         com.data(bhtree.com);
-        children.data(bhtree.children);
+        children.data(bhtree.first_child);
         next.data(bhtree.next);
 
         size_t size = bhtree.lbf.size();
@@ -117,6 +118,9 @@ int main() {
       if (camera.has_changed()) {
         renderer.get_flare_renderer().set_view_proj(camera.get_view_proj());
         bhrenderer.set_view_proj(camera.get_view_proj());
+      }
+      if (red.has_changed()) {
+        bhrenderer.set_red(red);
       }
 
       if (G.has_changed()) {
@@ -176,11 +180,12 @@ int main() {
       ImGui::Checkbox("VSync", &sync);
       ImGui::Checkbox("Rotate", &rotate);
       ImGui::Checkbox("Boxes", &boxes);
+      ImGui::Checkbox("Show red boxes", &red);
       ImGui::Checkbox("Gpu", &gpu);
       ImGui::Checkbox("O(n^2)", &n2);
       ImGui::Checkbox("Initial velocity", &initial_vel);
       ImGui::Checkbox("Interaction", &interaction);
-      ImGui::SliderInt("N", &n, 1, 50000);
+      ImGui::SliderInt("N", &n, 1, 10);
       ImGui::SliderInt("Size", &tex_size, 2, 32);
       ImGui::SliderFloat("Damping", &damping, 0.96, 1.0);
       ImGui::SliderFloat("Sd", &sd, 1.0, 30);

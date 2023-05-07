@@ -1,6 +1,7 @@
 #pragma once
 #include "./utils.h"
 #include <algorithm>
+#include <array>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <iostream>
@@ -35,25 +36,38 @@ class BarnesHutTree {
   float eps2 = 0.4f;
   static constexpr float MAX_DOMAIN = 1000.0f;
   static constexpr float EPS = 0.00001;
-  void insert_node(int i, const vec3 &pos, float mass = 1.0) {
+  void create_child(int i, int q, const vec3 &pos, float mass) {
+    children[i][q] = children.size();
+    first_child[i] = children.size();
+    children.push_back({0});
+    com.emplace_back(pos.x, pos.y, pos.z, mass);
+    first_child.push_back(0);
+    next.push_back(0);
+
+    const float hw = sizes[i] / 2;
+    float x = (q & 1) ? lbf[i].x + hw : lbf[i].x;
+    float y = (q & 2) ? lbf[i].y + hw : lbf[i].y;
+    float z = (q & 4) ? lbf[i].z + hw : lbf[i].z;
+
+    lbf.emplace_back(x, y, z);
+    sizes.push_back(hw);
+  }
+
+  void insert_node(int i, const vec3 &pos, float mass) {
+#ifdef DEBUG
     assert(is_inside(lbf.at(i), sizes[i], pos));
+#endif
 
-    if (children[i]) { // it has children
+    if (first_child[i]) { // it has children
       com[i].w += mass;
-      int q = children[i] + get_subquadrant(lbf[i], sizes[i], pos);
-      int tmp = com[q].w;
-      insert_node(q, pos, mass);
-
-      if (tmp < 0.5) {
-        next[i] = q;
+      int q = get_subquadrant(lbf[i], sizes[i], pos);
+      if (!children[i][q]) { // do not exist this child
+        create_child(i, q, pos, mass);
+        return;
       }
-      return;
-    }
-    if (com[i].w < 0.5) { // there is no particle;
-      com[i].w = mass;
-      com[i].x = pos.x;
-      com[i].y = pos.y;
-      com[i].z = pos.z;
+
+      insert_node(children[i][q], pos, mass);
+
       return;
     }
     // subdivide
@@ -67,65 +81,48 @@ class BarnesHutTree {
       return;
     }
 
-    children[i] = children.size();
-
     const float hw = sizes[i] / 2;
 
-    int qa = children[i] + get_subquadrant(lbf[i], sizes[i], com[i]);
-    int qb = children[i] + get_subquadrant(lbf[i], sizes[i], pos);
+    int qa = get_subquadrant(lbf[i], sizes[i], com[i]);
+    int qb = get_subquadrant(lbf[i], sizes[i], pos);
 
-    for (int k = 0; k < 8; k++) {
-      float x = (k & 1) ? lbf[i].x + hw : lbf[i].x;
-      float y = (k & 2) ? lbf[i].y + hw : lbf[i].y;
-      float z = (k & 4) ? lbf[i].z + hw : lbf[i].z;
-      lbf.emplace_back(x, y, z);
-      sizes.push_back(hw);
-      com.emplace_back(0, 0, 0, 0);
-      children.push_back(0);
-      parents.push_back(i);
-      next.push_back(0);
+    create_child(i, qa, vec3{com[i].x, com[i].y, com[i].z}, com[i].w);
+    if (qb != qa) {
+      create_child(i, qb, pos, mass);
+    } else {
+      insert_node(children[i][qa], pos, mass);
     }
-    insert_node(qa, vec3{com[i].x, com[i].y, com[i].z}, com[i].w);
-    insert_node(qb, pos, mass);
-    next[i] = qb;
-
     com[i].w += mass;
   }
 
-  void compute_next(int i, int nex = -1) {
+  void postprocess(int i, int nex) {
     next[i] = nex;
-    if (!children[i]) {
-      return;
-    }
-    int prev = nex;
-    for (int k = 7; k >= 0; k--) {
-      int q = children[i] + k;
-      if (com[q].w < 0.5)
-        continue;
-      compute_next(q, prev);
-      prev = q;
-    }
-  }
-  void compute_com(int i) {
-    if (!children[i]) {
+    if (!first_child[i]) {
       return;
     }
     com[i].x = 0;
     com[i].y = 0;
     com[i].z = 0;
-    for (int k = 0; k < 8; k++) {
-      compute_com(children[i] + k);
-      const auto &child = com[children[i] + k];
+    int prev = nex;
+    for (int k = 7; k >= 0; k--) {
+      int q = children[i][k];
+      if (!q)
+        continue;
+      postprocess(q, prev);
+      prev = q;
+      const auto &child = com[q];
       com[i].x += child.x * child.w;
       com[i].y += child.y * child.w;
       com[i].z += child.z * child.w;
     }
-    if (com[i].w > 0.5) {
-      com[i].x /= com[i].w; // node.mass won't be zero
-      com[i].y /= com[i].w; // node.mass won't be zero
-      com[i].z /= com[i].w; // node.mass won't be zero
-    }
+    first_child[i] = prev;
+    com[i].x /= com[i].w; // node.mass won't be zero
+    com[i].y /= com[i].w; // node.mass won't be zero
+    com[i].z /= com[i].w; // node.mass won't be zero
+#ifdef DEBUG
+    assert(com[i].w > 0.5);
     assert(is_inside(lbf.at(i), sizes[i], vec3{com[i].x, com[i].y, com[i].z}));
+#endif
   }
 
 public:
@@ -137,69 +134,74 @@ public:
   vector<glm::vec3> lbf;
   vector<float> sizes;
   vector<glm::vec4> com;
-  vector<int> children;
-  vector<int> parents;
+  vector<std::array<int, 8>> children;
+  vector<int> first_child;
   vector<int> next;
   BarnesHutTree() {}
   void set_domain(float d) { domain = std::min(d, MAX_DOMAIN); }
   void set_threshold(float th) { threshold = th; }
   void create_tree(const vector<glm::vec4> &positions) {
     int n = positions.size();
+
     lbf.clear();
     sizes.clear();
     com.clear();
     children.clear();
-    parents.clear();
     next.clear();
+    first_child.clear();
 
-    lbf.emplace_back(-domain / 2, -domain / 2, -domain / 2);
+    int first = 0;
+    vec3 first_cube{-domain / 2, -domain / 2, -domain / 2};
+    while (first < n) {
+      float w = positions[first].w;
+      vec3 pos{positions[first].x / w, positions[first].y / w,
+               positions[first].z / w};
+      if (is_inside(first_cube, domain, positions[first++])) {
+        lbf.emplace_back(-domain / 2, -domain / 2, -domain / 2);
+        sizes.push_back(domain);
+        com.emplace_back(pos.x, pos.y, pos.z, 1);
+        children.push_back({0});
+        first_child.push_back(0);
+        next.push_back(-1);
+        break;
+      } else {
+#ifdef DEBUG
+        std::cout << "Node " << i << " is out of the the domain " << pos
+                  << '\n';
+#endif
+      }
+    }
+#ifdef DEBUG
+    assert(lbf.size());
+#endif
 
-    sizes.push_back(domain);
-
-    children.push_back(0);
-
-    com.emplace_back(0, 0, 0, 0);
-
-    parents.push_back(-1);
-
-    next.push_back(-1);
-
-    for (int i = 0; i < n; i++) {
+    for (int i = first; i < n; i++) {
       float w = positions[i].w;
       vec3 pos =
           vec3{positions[i].x / w, positions[i].y / w, positions[i].z / w};
       if (!is_inside(lbf[0], sizes[0], pos)) {
 #ifdef DEBUG
-        std::cout << "Node " << i << " is out of the the domain "
-                  << pos uint i = gl_GlobalInvocationID.x;
-        << '\n';
+        std::cout << "Node " << i << " is out of the the domain " << pos
+                  << '\n';
 #endif
         continue;
       }
-      insert_node(0, pos);
+      insert_node(0, pos, 1);
     }
-    compute_com(0);
-    compute_next(0);
+    postprocess(0, -1);
   }
+
   vec3 calc_acceleration(const vec3 &pos) const {
     int i = 0;
     vec3 acc = vec3(0);
-    int rep = 0;
     while (i != -1) {
-      float m = com.at(i).w;
-      vec3 p = vec3{com.at(i).x, com.at(i).y, com.at(i).z};
-      float d = glm::length(p - pos);
-      float s = sizes[i];
-      if (s / d < threshold || children.at(i) == 0) {
-        auto a = interact(pos, p, m);
-        if (m > 0.5) {
-          acc += a;
-        }
-        i = next.at(i);
+      vec3 p = vec3{com[i].x, com[i].y, com[i].z};
+      if (first_child[i] == 0 || sizes[i] / glm::length(p - pos) < threshold) {
+        auto a = interact(pos, p, com[i].w);
+        acc += a;
+        i = next[i];
       } else {
-        i = children.at(i);
-        while (com[i].w < 0.5)
-          i++;
+        i = first_child[i];
       }
     }
     return acc;
@@ -210,9 +212,9 @@ public:
     float ma = 0;
     for (int i = 0; i < pos.size(); i++) {
       auto a = calc_acceleration(pos[i]);
-      a *= *&G;
-      vel[i] += glm::vec4(a * *&dt, 0);
-      pos[i] += vel[i] * *&dt;
+      a *= G;
+      vel[i] += glm::vec4(a * dt, 0);
+      pos[i] += vel[i] * dt;
       ma = std::max(ma, max(pos[i]));
     }
     set_domain(ma * 3);

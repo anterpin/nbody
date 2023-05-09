@@ -7,5 +7,5 @@ release:
 build:
 	cd ./imgui; g++ -c -O3 ./*.cpp
 	mkdir ./imgui/build
-	cp ./imgui/*.o ./imgui/build
+	mv ./imgui/*.o ./imgui/build
 

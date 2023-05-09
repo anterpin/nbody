@@ -185,7 +185,7 @@ int main() {
       ImGui::Checkbox("O(n^2)", &n2);
       ImGui::Checkbox("Initial velocity", &initial_vel);
       ImGui::Checkbox("Interaction", &interaction);
-      ImGui::SliderInt("N", &n, 1, 10);
+      ImGui::SliderInt("N", &n, 1, 40000);
       ImGui::SliderInt("Size", &tex_size, 2, 32);
       ImGui::SliderFloat("Damping", &damping, 0.96, 1.0);
       ImGui::SliderFloat("Sd", &sd, 1.0, 30);

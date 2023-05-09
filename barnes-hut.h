@@ -54,45 +54,46 @@ class BarnesHutTree {
   }
 
   void insert_node(int i, const vec3 &pos, float mass) {
+    while (true) {
 #ifdef DEBUG
-    assert(is_inside(lbf.at(i), sizes[i], pos));
+      assert(is_inside(lbf.at(i), sizes[i], pos));
 #endif
 
-    if (first_child[i]) { // it has children
-      com[i].w += mass;
-      int q = get_subquadrant(lbf[i], sizes[i], pos);
-      if (!children[i][q]) { // do not exist this child
-        create_child(i, q, pos, mass);
-        return;
+      if (first_child[i]) { // it has children
+        com[i].w += mass;
+        int q = get_subquadrant(lbf[i], sizes[i], pos);
+        if (!children[i][q]) { // do not exist this child
+          create_child(i, q, pos, mass);
+          break;
+        }
+
+        i = children[i][q];
+        continue;
+      }
+      // subdivide
+      vec3 diff = vec3{com[i].x, com[i].y, com[i].z} - pos;
+      float dist = glm::dot(diff, diff);
+      if (dist < EPS) { // if for some reason two or more particles
+                        // are too close together
+                        // we consider them as one bigger particle
+        // no ajust on the center of mass
+        com[i].w += mass;
+        break;
       }
 
-      insert_node(children[i][q], pos, mass);
+      const float hw = sizes[i] / 2;
 
-      return;
-    }
-    // subdivide
-    vec3 diff = vec3{com[i].x, com[i].y, com[i].z} - pos;
-    float dist = glm::dot(diff, diff);
-    if (dist < EPS) { // if for some reason two or more particles
-                      // are too close together
-                      // we consider them as one bigger particle
-      // no ajust on the center of mass
+      int qa = get_subquadrant(lbf[i], sizes[i], com[i]);
+      int qb = get_subquadrant(lbf[i], sizes[i], pos);
+
+      create_child(i, qa, vec3{com[i].x, com[i].y, com[i].z}, com[i].w);
       com[i].w += mass;
-      return;
+      if (qb != qa) {
+        create_child(i, qb, pos, mass);
+        break;
+      }
+      i = children[i][qa];
     }
-
-    const float hw = sizes[i] / 2;
-
-    int qa = get_subquadrant(lbf[i], sizes[i], com[i]);
-    int qb = get_subquadrant(lbf[i], sizes[i], pos);
-
-    create_child(i, qa, vec3{com[i].x, com[i].y, com[i].z}, com[i].w);
-    if (qb != qa) {
-      create_child(i, qb, pos, mass);
-    } else {
-      insert_node(children[i][qa], pos, mass);
-    }
-    com[i].w += mass;
   }
 
   void postprocess(int i, int nex) {
@@ -166,7 +167,7 @@ public:
         break;
       } else {
 #ifdef DEBUG
-        std::cout << "Node " << i << " is out of the the domain " << pos
+        std::cout << "Node " << first << " is out of the the domain " << pos
                   << '\n';
 #endif
       }

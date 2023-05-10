@@ -33,9 +33,10 @@ static int get_subquadrant(const glm::vec3 &lbf, float size, const vec3 &pos) {
 class BarnesHutTree {
   float domain = 200.0f;
   float threshold = 0.5f;
-  float eps2 = 0.4f;
-  static constexpr float MAX_DOMAIN = 1000.0f;
-  static constexpr float EPS = 0.00001;
+  float eps2 = 0.9f;
+  float damping = 0.99998f;
+  float EPS = 0.01;
+  static constexpr float MAX_DOMAIN = 5000.0f;
   void create_child(int i, int q, const vec3 &pos, float mass) {
     children[i][q] = children.size();
     first_child[i] = children.size();
@@ -139,8 +140,11 @@ public:
   vector<int> first_child;
   vector<int> next;
   BarnesHutTree() {}
+  void set_damping(float d) { damping = d; }
   void set_domain(float d) { domain = std::min(d, MAX_DOMAIN); }
   void set_threshold(float th) { threshold = th; }
+  void set_eps2(float e) { eps2 = e; }
+  void set_eps(float e) { EPS = e; }
   void create_tree(const vector<glm::vec4> &positions) {
     int n = positions.size();
 

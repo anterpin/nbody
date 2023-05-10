@@ -170,15 +170,17 @@ public:
     h = _h;
     glViewport(0, 0, w, h);
   }
-  bool should_close() const {
+  bool should_close(bool gui) const {
 #ifdef IMGUI
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    if (inp->ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-      GLFWwindow *backup_current_context = glfwGetCurrentContext();
-      ImGui::UpdatePlatformWindows();
-      ImGui::RenderPlatformWindowsDefault();
-      glfwMakeContextCurrent(backup_current_context);
+    if (gui) {
+      ImGui::Render();
+      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+      if (inp->ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        GLFWwindow *backup_current_context = glfwGetCurrentContext();
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+        glfwMakeContextCurrent(backup_current_context);
+      }
     }
 #endif
 
@@ -192,7 +194,9 @@ public:
     glClearColor(color.x, color.y, color.z, 1.0);
     bool out = glfwWindowShouldClose(window);
 #ifdef IMGUI
-    new_frame();
+    if (gui) {
+      new_frame();
+    }
 #endif
     return out;
   }

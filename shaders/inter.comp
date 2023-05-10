@@ -67,9 +67,10 @@ vec3 calc_acceleration(vec3 pos) {
     return acc;
 }
 
+shared vec4 cache[gl_WorkGroupSize.x];
+
 void main() {
     uint i = gl_GlobalInvocationID.x;
-    /* uint i = gl_LocalInvocationIndex; */
     uint n = pos.length();
     if (i >= n) return;
     vec3 p = pos[i].xyz;
@@ -83,8 +84,7 @@ void main() {
         a += interact(b, p, 1);
       }
     }
-    a *= G;
 
-    vel[i] = vel[i] * damping + vec4(a * dt, 0);
-    pos[i] += vel[i] * dt;
+    vel[i] = vec4(vel[i].xyz * damping + a * G * dt, 0);
+    pos[i] = vec4(pos[i].xyz + vel[i].xyz * dt, pos[i].w);
 }

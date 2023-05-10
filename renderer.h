@@ -40,7 +40,6 @@ public:
     program.use();
     vao.bind();
     tex.bind_texture_unit(0);
-
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     if (fbo) {
       fbo->unbind();
@@ -195,7 +194,6 @@ public:
     depth->set(w, h, 1, GL_DEPTH24_STENCIL8, 0, 0, nullptr);
 
     fbo.attach_texture(*attach);
-    fbo.attach_depth(*depth);
 
     program.use();
     glProgramUniform2f(program.get_id(), 3, factor * tex_size / (float)w,
@@ -302,7 +300,6 @@ public:
     tonemap_renderer.render(flare_renderer.get_texture(),
                             blur_renderer.get_texture(),
                             lum_renderer.get_texture());
-    rend.render(blur_renderer.get_texture(), w, h);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
   }
 };
@@ -338,8 +335,6 @@ class BarnesHutRenderer {
     }
   }
   int w, h;
-  FBO fbo;
-  std::unique_ptr<Texture> attach;
 
 public:
   BarnesHutRenderer(int _w, int _h) {
@@ -362,22 +357,15 @@ public:
   void set_dimensions(int _w, int _h) {
     w = _w;
     h = _h;
-    attach = std::make_unique<Texture>();
-    attach->filter_params();
-    attach->wrap_params();
-    attach->set(w, h, 1, GL_RGBA8, 0, 0, nullptr);
-    fbo.attach_texture(*attach);
   }
   void set_red(bool _red) { red = _red; }
   void set_view_proj(const glm::mat4 &view_proj) const {
     glProgramUniformMatrix4fv(program.get_id(), 2, 1, GL_FALSE,
                               glm::value_ptr(view_proj));
   }
-  const Texture &get_texture() const { return *attach; }
   void render(const BarnesHutTree &bhtree, const FBO &_fbo) const {
     _fbo.bind();
     glViewport(0, 0, w, h);
-    fbo.clear_color();
     program.use();
     vao.bind();
     program.use();

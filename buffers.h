@@ -49,12 +49,6 @@ public:
   ~FBO() { glDeleteFramebuffers(1, &id); }
   void bind() const { glBindFramebuffer(GL_FRAMEBUFFER, id); }
   void unbind() const { glBindFramebuffer(GL_FRAMEBUFFER, 0); }
-  void attach_depth(const Texture &tex) const {
-    glNamedFramebufferTexture(id, GL_DEPTH_ATTACHMENT, tex.get_id(), 0);
-    check(glCheckNamedFramebufferStatus(id, GL_FRAMEBUFFER) ==
-              GL_FRAMEBUFFER_COMPLETE,
-          "Cannot complete the frame buffer");
-  }
   void attach_texture(const Texture &tex) const {
     glNamedFramebufferTexture(id, GL_COLOR_ATTACHMENT0, tex.get_id(), 0);
     check(glCheckNamedFramebufferStatus(id, GL_FRAMEBUFFER) ==

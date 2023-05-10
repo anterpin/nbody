@@ -16,15 +16,17 @@ void check(bool cond, const std::string &message) {
     throw std::runtime_error(message);
 }
 
-std::vector<glm::vec4> initialize_vel(int N, float sd = 1.0) {
-  std::vector<glm::vec4> arr(N);
-  std::random_device r;
-  std::default_random_engine gen(r());
-  std::normal_distribution<float> dist(0, sd);
-  float f = 1.0f;
-  for (auto &v : arr) {
-    /* v = glm::vec4(0.0, 0, 0, 0.0); */
-    v = glm::vec4(f * dist(gen), f * dist(gen), f * dist(gen), 0.0);
+std::vector<glm::vec4> initialize_vel(const std::vector<glm::vec4> &pos) {
+  std::mt19937 rng;
+  std::uniform_real_distribution<> dis(0, 1);
+
+  std::vector<glm::vec4> arr;
+  arr.reserve(pos.size());
+  for (int i = 0; i < pos.size(); i++) {
+    glm::vec3 vel = glm::cross(glm::vec3(pos[i]), glm::vec3(0, 1, 0));
+    float orbital_vel = sqrt(2.0 * glm::length(vel));
+    vel = glm::normalize(vel) * orbital_vel;
+    arr.emplace_back(vel, 0.0);
   }
   return arr;
 }
@@ -33,33 +35,24 @@ float max(const glm::vec3 &v) {
   return std::max(std::abs(v.x), std::max(std::abs(v.y), std::abs(v.z)));
 }
 
-std::vector<glm::vec4> initialize_random(int N, float &d, float sd = 1.0) {
-  std::random_device r;
-  std::default_random_engine gen;
+std::vector<glm::vec4> initialize_pos(int N, float &d) {
+  std::mt19937 rng;
+  std::uniform_real_distribution<> dis(0, 1);
 
   std::vector<glm::vec4> arr;
-  std::uniform_real_distribution<float> mean(-30, 30);
-  std::normal_distribution<float> dist(0, sd);
-
+  arr.reserve(N);
   d = 0;
-  float f = 3.0;
-  std::vector<glm::vec4> centers = {
-      glm::vec4(10, -2, 20, 0), glm::vec4(10, 0, 0, 0),
-      glm::vec4(10, 3, 0, 0),   glm::vec4(-10, 0, 0, 0),
-      glm::vec4(0, 0, 10, 0),   glm::vec4(0, 0, -10, 0)};
-  for (int k = 0; k < (int)centers.size() - 1; k++) {
-    for (int i = 0; i < N / centers.size(); i++) {
-      arr.push_back(
-          glm::vec4(centers[k] + glm::vec4(f * dist(gen), f * dist(gen),
-                                           f * dist(gen), 1.0)));
-      d = std::max(max(arr.back()), d);
-    }
-  }
-  for (int i = arr.size(); i < N; i++) {
-    arr.push_back(
-        glm::vec4(centers.back() +
-                  glm::vec4(f * dist(gen), f * dist(gen), f * dist(gen), 1.0)));
-    d = std::max(max(arr.back()), d);
+  for (int i = 0; i < N; i++) {
+    glm::vec4 particle;
+    float t = dis(rng) * 2 * 3.141592653;
+    float s = dis(rng) * 100;
+    particle.x = cos(t) * s;
+    particle.z = sin(t) * s;
+    particle.y = dis(rng) * 4;
+
+    particle.w = 1.f;
+    arr.push_back(particle);
+    d = std::max(d, max(glm::vec3{particle.x, particle.y, particle.z}));
   }
   return arr;
 }

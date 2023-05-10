@@ -6,6 +6,8 @@
 #include "./utils.h"
 #include "./win.h"
 #include "imgui/imgui.h"
+#include <GLFW/glfw3.h>
+#include <chrono>
 #include <glm/ext/vector_float3.hpp>
 
 int main() {
@@ -43,19 +45,18 @@ int main() {
     Value<int> n(3, true);
     Value<int> tex_size(6);
     Value<bool> sync(false);
-    Value<bool> rotate(false);
     Value<float> sd(10.0, true);
     Value<float> G(0.4);
-    Value<float> damping(1);
-    Value<float> eps(0.4);
+    Value<float> damping(9998.0);
+    Value<float> eps2(0.4);
     Value<float> threshold(0.5);
     Value<float> dt(0.005);
-    Value<bool> interaction(false);
-    Value<bool> initial_vel(false, true);
+    Value<bool> interaction(false, false);
     Value<bool> boxes(true);
     Value<bool> red(false);
-    Value<bool> gpu(false, true);
+    Value<bool> gpu(true, true);
     Value<bool> n2(false);
+    Value<float> eps(0.01, true);
 
     std::vector<glm::vec4> pos;
     std::vector<glm::vec4> vel;
@@ -80,11 +81,10 @@ int main() {
       positions = std::make_unique<VBO<glm::vec4>>();
       velocities = std::make_unique<VBO<glm::vec4>>();
       float d;
-      pos = initialize_random(n, d);
+      pos = initialize_pos(n, d);
       bhtree.set_domain(d * 3);
 
-      vel = initial_vel ? initialize_vel(n, sd)
-                        : std::vector<glm::vec4>(n, glm::vec4(0, 0, 0, 0));
+      vel = initialize_vel(pos);
 
       if (gpu) {
         positions->load(pos, GL_CLIENT_STORAGE_BIT | GL_MAP_READ_BIT);
@@ -102,7 +102,27 @@ int main() {
       compute_tree();
     };
     init();
-    while (!app.should_close()) {
+
+    bool gui = false;
+    TextureRenderer texture_renderer;
+    auto start = std::chrono::high_resolution_clock::now();
+    int fps = 0;
+    while (!app.should_close(gui)) {
+      static bool press = false;
+      if (input.keys[GLFW_KEY_SPACE] != GLFW_RELEASE) {
+        if (!press) {
+          start = std::chrono::high_resolution_clock::now();
+          fps = 0;
+          gui = !gui;
+          size->x = w;
+          size->y = h;
+          press = true;
+          input.hovered = false;
+        }
+      } else {
+        input.hovered = true;
+        press = false;
+      }
       if (size.has_changed()) {
         int w = size->x;
         int h = size->y;
@@ -111,9 +131,8 @@ int main() {
         renderer.set_dimensions(w, h);
         bhrenderer.set_dimensions(w, h);
       }
+
       camera.test_on_input();
-      if (rotate)
-        camera.rotate_x(1.0);
 
       if (camera.has_changed()) {
         renderer.get_flare_renderer().set_view_proj(camera.get_view_proj());
@@ -127,11 +146,17 @@ int main() {
         inter.set_G(G);
       }
       if (damping.has_changed()) {
-        inter.set_damping(damping);
+        inter.set_damping(damping / 10000.0);
+        bhtree.set_damping(damping / 10000.0);
+      }
+      if (eps2.has_changed()) {
+        inter.set_eps(eps2);
+        bhtree.set_eps2(eps2);
       }
       if (eps.has_changed()) {
-        inter.set_eps(eps);
+        bhtree.set_eps(eps);
       }
+
       if (dt.has_changed()) {
         inter.set_dt(dt);
       }
@@ -145,8 +170,7 @@ int main() {
       }
 
       // cannot be more than one at the same time
-      if (initial_vel.has_changed() || n.has_changed() || sd.has_changed() ||
-          gpu.has_changed()) {
+      if (n.has_changed() || gpu.has_changed()) {
         init();
       }
 
@@ -161,12 +185,16 @@ int main() {
         if (gpu) {
           inter.compute(n);
           positions->get_data_from_gpu(pos);
+          float ma = 0;
+          for (int i = 0; i < n; i++) {
+            ma = std::max(ma, max(glm::vec3{pos[i].x, pos[i].y, pos[i].z}));
+          }
+          bhtree.set_domain(ma * 3);
         } else {
           bhtree.update_pos_and_velocities(pos, vel, G, dt);
           positions->data(pos);
           velocities->data(vel);
         }
-        /* *&interaction = false; */
         compute_tree();
       }
 
@@ -175,38 +203,52 @@ int main() {
         bhrenderer.render(bhtree, renderer.get_tone_renderer().get_fbo());
       }
 
+      if (!gui) {
+        const auto &tex = renderer.get_tone_renderer().get_texture();
+        texture_renderer.render(tex, w, h);
+        auto end = std::chrono::high_resolution_clock::now();
+        fps++;
+        if (end - start >= std::chrono::duration<double>(1.0)) {
+          std::cout << "FPS " << fps << '\n';
+          start = end;
+          fps = 0;
+        }
+        continue;
+      }
 #ifdef IMGUI
       ImGui::Begin("Options");
-      ImGui::Checkbox("VSync", &sync);
-      ImGui::Checkbox("Rotate", &rotate);
-      ImGui::Checkbox("Boxes", &boxes);
-      ImGui::Checkbox("Show red boxes", &red);
-      ImGui::Checkbox("Gpu", &gpu);
-      ImGui::Checkbox("O(n^2)", &n2);
-      ImGui::Checkbox("Initial velocity", &initial_vel);
-      ImGui::Checkbox("Interaction", &interaction);
-      ImGui::SliderInt("N", &n, 1, 40000);
-      ImGui::SliderInt("Size", &tex_size, 2, 32);
-      ImGui::SliderFloat("Damping", &damping, 0.96, 1.0);
-      ImGui::SliderFloat("Sd", &sd, 1.0, 30);
-      ImGui::SliderFloat("G", &G, -3, 3);
-      ImGui::SliderFloat("EPS squared", &eps, 0.0001, 10);
-      ImGui::SliderFloat("dt", &dt, -0.01, 0.01);
-      ImGui::SliderFloat("Threshold", &threshold, 0, 1);
-      ImGui::Text("Distance: %.3f", camera.get_distance());
+      if (ImGui::CollapsingHeader("General")) {
+        ImGui::Checkbox("Gpu", &gpu);
+        ImGui::Checkbox("O(n^2)", &n2);
+        ImGui::Checkbox("Interaction", &interaction);
+        ImGui::SliderInt("N", &n, 1, 100000);
+      }
+      static bool first = true;
+      if (first) {
+        ImGui::GetStateStorage()->SetInt(ImGui::GetID("General"), 1);
+        first = false;
+      }
+
+      if (ImGui::CollapsingHeader("Render")) {
+        ImGui::Checkbox("VSync", &sync);
+        ImGui::Checkbox("Boxes", &boxes);
+        ImGui::Checkbox("With red boxes", &red);
+        ImGui::SliderInt("Flare size", &tex_size, 2, 32);
+      }
+      if (ImGui::CollapsingHeader("Barnes Hut")) {
+        ImGui::SliderFloat("Eps", &eps, 0.01, 0.1);
+        ImGui::SliderFloat("Threshold", &threshold, 0, 1);
+        ImGui::Text("Tree Size: %d", (int)bhtree.next.size());
+      }
+      if (ImGui::CollapsingHeader("Physics")) {
+        ImGui::SliderFloat("Damping", &damping, 9990, 10000);
+        ImGui::SliderFloat("G", &G, 0, 3);
+        ImGui::SliderFloat("EPS squared", &eps2, 0.0001, 10);
+        ImGui::SliderFloat("dt", &dt, 0.0001, 0.01);
+      }
+      ImGui::Text("Camera distance: %.3f", camera.get_distance());
       ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate,
                   io.Framerate);
-
-      {
-        ImGui::BeginChild("GameRender");
-        ImVec2 wsize = ImGui::GetWindowSize();
-        const Texture &tmp_tex = renderer.get_flare_renderer().get_depth();
-        wsize.y =
-            (int)(wsize.x * (float)tmp_tex.get_height() / tmp_tex.get_width());
-        ImGui::Image((ImTextureID)(uint64_t)tmp_tex.get_id(), wsize,
-                     ImVec2(0, 1), ImVec2(1, 0));
-        ImGui::EndChild();
-      }
 
       ImGui::End();
       ImGui::Begin("Main Window");

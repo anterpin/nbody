@@ -11,14 +11,15 @@
 #include <string>
 #include <vector>
 
+std::mt19937 rng;
+std::uniform_real_distribution<> dis(0, 1);
+
 void check(bool cond, const std::string &message) {
   if (!cond)
     throw std::runtime_error(message);
 }
 
 std::vector<glm::vec4> initialize_vel(const std::vector<glm::vec4> &pos) {
-  std::mt19937 rng;
-  std::uniform_real_distribution<> dis(0, 1);
 
   std::vector<glm::vec4> arr;
   arr.reserve(pos.size());
@@ -36,9 +37,6 @@ float max(const glm::vec3 &v) {
 }
 
 std::vector<glm::vec4> initialize_pos(int N, float &d) {
-  std::mt19937 rng;
-  std::uniform_real_distribution<> dis(0, 1);
-
   std::vector<glm::vec4> arr;
   arr.reserve(N);
   d = 0;

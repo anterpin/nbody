@@ -191,7 +191,7 @@ int main() {
           }
           bhtree.set_domain(ma * 3);
         } else {
-          bhtree.update_pos_and_velocities(pos, vel, G, dt);
+          bhtree.update_pos_and_velocities(pos, vel, G, dt, n2);
           positions->data(pos);
           velocities->data(vel);
         }
@@ -243,7 +243,7 @@ int main() {
       if (ImGui::CollapsingHeader("Physics")) {
         ImGui::SliderFloat("Damping", &damping, 9990, 10000);
         ImGui::SliderFloat("G", &G, 0, 3);
-        ImGui::SliderFloat("EPS squared", &eps2, 0.0001, 10);
+        ImGui::SliderFloat("EPS squared", &eps2, 0.01, 10);
         ImGui::SliderFloat("dt", &dt, 0.0001, 0.01);
       }
       ImGui::Text("Camera distance: %.3f", camera.get_distance());

@@ -51,18 +51,9 @@ vec3 calc_acceleration(vec3 pos) {
     int i = 0;
     vec3 acc = vec3(0);
     while (i != -1) {
-      float m = com[i].w;
-      vec3 p = com[i].xyz;
-      float d = distance(pos, p);
-      float s = sizes[i];
-      if ((s / d) < threshold || chil[i] == 0) {
-        if (m > 0.5) {
-          acc += interact(p, pos, m);
-        }
-        i = nex[i];
-      } else {
-        i = chil[i];
-      }
+      bool cond = chil[i] == 0 || (sizes[i] / distance(com[i].xyz, pos)) < threshold;
+      acc += cond ? interact(com[i].xyz, pos, com[i].w) : vec3(0);
+      i = cond ? nex[i] : chil[i];
     }
     return acc;
 }

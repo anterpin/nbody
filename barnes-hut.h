@@ -213,9 +213,24 @@ public:
   }
 
   void update_pos_and_velocities(vector<glm::vec4> &pos, vector<glm::vec4> &vel,
-                                 float G, float dt) {
+                                 float G, float dt, bool n2) {
     float ma = 0;
-    for (int i = 0; i < pos.size(); i++) {
+    int n = pos.size();
+    if (n2) {
+      for (int i = 0; i < n; i++) {
+        vec3 a{0, 0, 0};
+        for (int j = 0; j < n; j++) {
+          a += interact(pos[i], pos[j], 1);
+        }
+        a *= G;
+        vel[i] += glm::vec4(a * dt, 0);
+        pos[i] += vel[i] * dt;
+        ma = std::max(ma, max(pos[i]));
+      }
+      set_domain(ma * 3);
+      return;
+    }
+    for (int i = 0; i < n; i++) {
       auto a = calc_acceleration(pos[i]);
       a *= G;
       vel[i] += glm::vec4(a * dt, 0);

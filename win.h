@@ -104,7 +104,6 @@ public:
   void handle(Input *input) {
     if (input->keys[GLFW_KEY_ESCAPE]) {
       glfwSetWindowShouldClose(window, GL_TRUE);
-      return;
     }
   }
 
@@ -161,6 +160,10 @@ public:
 
   void set_resize_callback(void (*callback)(GLFWwindow *, int, int)) const {
     glfwSetFramebufferSizeCallback(window, callback);
+  }
+
+  void get_sizes(int &width, int &height) const {
+    glfwGetFramebufferSize(window, &width, &height);
   }
 
   void vsync(bool value) const { glfwSwapInterval(value); }

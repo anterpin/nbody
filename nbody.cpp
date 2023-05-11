@@ -10,15 +10,21 @@
 #include <chrono>
 #include <glm/ext/vector_float3.hpp>
 
+std::function<void(int, int)> resize_callback;
+void resize_callback_wrap(GLFWwindow *win, int w, int h) {
+  resize_callback(w, h);
+}
+
 int main() {
   Init init;
   {
-    const int w = 640;
-    const int h = 480;
+    int w = 640;
+    int h = 480;
     const float fov = 70;
     const float near = 1.f;
 
     App app(w, h, "N-Body");
+    app.get_sizes(w, h);
 
     Camera camera(w, h, fov, near);
 
@@ -104,6 +110,13 @@ int main() {
     init();
 
     bool gui = false;
+    resize_callback = [&](int _w, int _h) {
+      app.get_sizes(w, h);
+      size->x = w;
+      size->y = h;
+    };
+    app.set_resize_callback(resize_callback_wrap);
+
     TextureRenderer texture_renderer;
     auto start = std::chrono::high_resolution_clock::now();
     int fps = 0;
@@ -114,6 +127,7 @@ int main() {
           start = std::chrono::high_resolution_clock::now();
           fps = 0;
           gui = !gui;
+          app.get_sizes(w, h);
           size->x = w;
           size->y = h;
           press = true;

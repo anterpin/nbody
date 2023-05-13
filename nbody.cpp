@@ -235,7 +235,7 @@ int main() {
         ImGui::Checkbox("Gpu", &gpu);
         ImGui::Checkbox("O(n^2)", &n2);
         ImGui::Checkbox("Interaction", &interaction);
-        ImGui::SliderInt("N", &n, 1, 100000);
+        ImGui::SliderInt("N", &n, 1, 200000);
       }
       static bool first = true;
       if (first) {

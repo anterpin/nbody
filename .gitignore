@@ -1,3 +1,5 @@
 a.out
 ./imgui/build
 nbody.o
+imgui.ini
+.vscode/

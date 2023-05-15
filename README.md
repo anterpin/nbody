@@ -19,6 +19,8 @@ http://arborjs.org/docs/barnes-hut
 
 Антон это сделает
 
+## Thread divergence
+
 ## Интегратор Leap-frog
 
 ## Недостатки

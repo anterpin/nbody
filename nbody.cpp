@@ -42,44 +42,49 @@ int main() {
     VBO<glm::vec4> com;
     VBO<int> children;
     VBO<int> next;
+    VBO<int> sorted;
 
     BarnesHutTree bhtree;
     BarnesHutRenderer bhrenderer(w, h);
     bhrenderer.set_view_proj(camera.get_view_proj());
 
-    Value<glm::vec2> size(glm::vec2{w, h});
-    Value<int> n(3, true);
-    Value<int> tex_size(6);
-    Value<bool> sync(false);
-    Value<float> sd(10.0, true);
-    Value<float> G(0.4);
-    Value<float> damping(9998.0);
-    Value<float> eps2(0.4);
-    Value<float> threshold(0.5);
-    Value<float> dt(0.005);
+    Value<glm::vec2> size(glm::vec2{w, h}, glm::vec2{w + 1, h});
+    Value<int> n(3, 3); // just a random value to not be equal
+    Value<int> tex_size(6, 5);
+    Value<bool> sync(false, true);
+    Value<float> sd(10.0, 10.0);
+    Value<float> G(0.4, 0.3);
+    Value<float> damping(9998.0, 123);
+    Value<float> eps2(0.4, 123);
+    Value<float> threshold(0.5, 123);
+    Value<float> dt(0.005, 123);
     Value<bool> interaction(false, false);
-    Value<bool> boxes(true);
-    Value<bool> red(false);
+    Value<bool> boxes(true, false);
+    Value<bool> red(false, true);
     Value<bool> gpu(true, true);
-    Value<bool> n2(false);
+    Value<bool> n2(false, true);
+    Value<bool> sort(true, false);
     Value<float> eps(0.01, true);
+    bhtree.set_sort(sort);
 
     std::vector<glm::vec4> pos;
     std::vector<glm::vec4> vel;
 
     auto compute_tree = [&]() {
-      bhtree.create_tree(pos);
+      bhtree.create_tree(pos, vel);
       if (!n2) {
         sizes.data(bhtree.sizes);
         com.data(bhtree.com);
         children.data(bhtree.first_child);
         next.data(bhtree.next);
+        sorted.data(bhtree.sorted);
 
         size_t size = bhtree.lbf.size();
         sizes.bind_shader_storage_buffer(2, size);
         com.bind_shader_storage_buffer(3, size);
         children.bind_shader_storage_buffer(4, size);
         next.bind_shader_storage_buffer(5, size);
+        sorted.bind_shader_storage_buffer(6, n);
       }
     };
 
@@ -178,6 +183,10 @@ int main() {
         inter.set_n2(n2);
       }
 
+      if (sort.has_changed()) {
+        bhtree.set_sort(sort);
+        inter.set_sort(sort);
+      }
       if (threshold.has_changed()) {
         bhtree.set_threshold(threshold);
         inter.set_threshold(threshold);
@@ -234,8 +243,9 @@ int main() {
       if (ImGui::CollapsingHeader("General")) {
         ImGui::Checkbox("Gpu", &gpu);
         ImGui::Checkbox("O(n^2)", &n2);
+        ImGui::Checkbox("Sort", &sort);
         ImGui::Checkbox("Interaction", &interaction);
-        ImGui::SliderInt("N", &n, 1, 200000);
+        ImGui::SliderInt("N", &n, 1, 100000);
       }
       static bool first = true;
       if (first) {

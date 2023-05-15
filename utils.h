@@ -123,10 +123,7 @@ template <typename T> class Value {
   T value;
 
 public:
-  explicit Value(T _value, bool init = false) : value{_value} {
-    if (init)
-      prev = _value;
-  }
+  explicit Value(T _value, T _prev) : value{_value}, prev{_prev} {}
   operator T() const { return value; }
   T *operator->() { return &value; }
   T *operator&() { return &value; }

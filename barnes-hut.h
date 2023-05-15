@@ -36,6 +36,7 @@ class BarnesHutTree {
   float eps2 = 0.9f;
   float damping = 0.99998f;
   float EPS = 0.01;
+  bool sort = true;
   static constexpr float MAX_DOMAIN = 5000.0f;
   void create_child(int i, int q, const vec3 &pos, float mass) {
     children[i][q] = children.size();
@@ -54,7 +55,7 @@ class BarnesHutTree {
     sizes.push_back(hw);
   }
 
-  void insert_node(int i, const vec3 &pos, float mass) {
+  void insert_node(int i, const vec3 &pos, float mass, int id) {
     while (true) {
 #ifdef DEBUG
       assert(is_inside(lbf.at(i), sizes[i], pos));
@@ -65,6 +66,8 @@ class BarnesHutTree {
         int q = get_subquadrant(lbf[i], sizes[i], pos);
         if (!children[i][q]) { // do not exist this child
           create_child(i, q, pos, mass);
+          reverse_arr.push_back(indexes.size());
+          indexes.push_back({id});
           break;
         }
 
@@ -79,6 +82,7 @@ class BarnesHutTree {
                         // we consider them as one bigger particle
         // no ajust on the center of mass
         com[i].w += mass;
+        indexes[reverse_arr[i]].push_back(id);
         break;
       }
 
@@ -88,18 +92,30 @@ class BarnesHutTree {
       int qb = get_subquadrant(lbf[i], sizes[i], pos);
 
       create_child(i, qa, vec3{com[i].x, com[i].y, com[i].z}, com[i].w);
+      reverse_arr.push_back(reverse_arr[i]);
+      reverse_arr[i] = -1;
       com[i].w += mass;
       if (qb != qa) {
         create_child(i, qb, pos, mass);
+        reverse_arr.push_back(indexes.size());
+        indexes.push_back({id});
         break;
       }
       i = children[i][qa];
     }
   }
 
-  void postprocess(int i, int nex) {
+  void postprocess(int i, int nex, const vector<glm::vec4> &pos,
+                   const vector<glm::vec4> &vel) {
     next[i] = nex;
     if (!first_child[i]) {
+#ifdef DEBUG
+      assert(reverse_arr[i] != -1);
+#endif
+      if (sort)
+        for (int j : indexes[reverse_arr[i]]) {
+          sorted.push_back(j);
+        }
       return;
     }
     com[i].x = 0;
@@ -110,7 +126,7 @@ class BarnesHutTree {
       int q = children[i][k];
       if (!q)
         continue;
-      postprocess(q, prev);
+      postprocess(q, prev, pos, vel);
       prev = q;
       const auto &child = com[q];
       com[i].x += child.x * child.w;
@@ -139,13 +155,19 @@ public:
   vector<std::array<int, 8>> children;
   vector<int> first_child;
   vector<int> next;
+
+  vector<int> reverse_arr;
+  vector<vector<int>> indexes; // first pos, vertices out of bound
+  vector<int> sorted;
   BarnesHutTree() {}
   void set_damping(float d) { damping = d; }
+  void set_sort(float s) { sort = s; }
   void set_domain(float d) { domain = std::min(d, MAX_DOMAIN); }
   void set_threshold(float th) { threshold = th; }
   void set_eps2(float e) { eps2 = e; }
   void set_eps(float e) { EPS = e; }
-  void create_tree(const vector<glm::vec4> &positions) {
+  void create_tree(const vector<glm::vec4> &positions,
+                   const vector<glm::vec4> &velocities) {
     int n = positions.size();
 
     lbf.clear();
@@ -154,6 +176,12 @@ public:
     children.clear();
     next.clear();
     first_child.clear();
+
+    reverse_arr.clear();
+    indexes.clear();
+    indexes.push_back({});
+
+    sorted.clear();
 
     int first = 0;
     vec3 first_cube{-domain / 2, -domain / 2, -domain / 2};
@@ -168,8 +196,12 @@ public:
         children.push_back({0});
         first_child.push_back(0);
         next.push_back(-1);
+
+        reverse_arr.push_back(indexes.size());
+        indexes.push_back({first - 1});
         break;
       } else {
+        indexes[0].push_back(first - 1);
 #ifdef DEBUG
         std::cout << "Node " << first << " is out of the the domain " << pos
                   << '\n';
@@ -191,9 +223,13 @@ public:
 #endif
         continue;
       }
-      insert_node(0, pos, 1);
+      insert_node(0, pos, 1, i);
     }
-    postprocess(0, -1);
+    postprocess(0, -1, positions, velocities);
+    if (sort)
+      for (int j : indexes[0]) {
+        sorted.push_back(j);
+      }
   }
 
   vec3 calc_acceleration(const vec3 &pos) const {

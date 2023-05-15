@@ -1,13 +1,14 @@
 #version 460
 
 
-layout (local_size_x = 256) in;
+layout (local_size_x = 64) in;
 layout (location = 1) uniform float G;
 layout (location = 2) uniform float dt;
 layout (location = 3) uniform float eps2;
 layout (location = 4) uniform float damping;
 layout (location = 5) uniform float threshold;
 layout (location = 6) uniform int n2;
+layout (location = 7) uniform int to_sort;
 
 
 layout (binding = 0, std430) buffer positions
@@ -40,6 +41,11 @@ layout (binding = 5, std430) buffer next
   int nex[];
 };
 
+layout (binding = 6, std430) buffer sorted
+{
+  int sort[];
+};
+
 
 vec3 interact(vec3 a, vec3 b, float m) {
   vec3 r = a - b;
@@ -63,6 +69,8 @@ void main() {
     uint i = gl_GlobalInvocationID.x;
     uint n = pos.length();
     if (i >= n) return;
+    if (to_sort == 1)
+      i = sort[i];
     vec3 p = pos[i].xyz;
 
     vec3 a = vec3(0.0);

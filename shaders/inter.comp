@@ -110,6 +110,17 @@ vec3 calc_acceleration(vec3 pos, bool first_thread) {
 
 
 void main() {
+#ifdef CACHING
+      // set cache
+      if (n2 == 0) {
+        for (int j = 0; j < CACHE_SIZE / gl_WorkGroupSize.x; j++) {
+          ind[gl_WorkGroupSize.x * gl_LocalInvocationID.x + j] = -1;
+        }
+        memoryBarrier();
+        barrier();
+      }
+#endif
+
     uint i = gl_GlobalInvocationID.x;
     uint n = pos.length();
     if (i >= n) {
@@ -123,14 +134,6 @@ void main() {
 
     vec3 a = vec3(0.0);
     if (n2 == 0) {
-#ifdef CACHING
-      // set cache
-      for (int j = 0; j < CACHE_SIZE / gl_WorkGroupSize.x; j++) {
-        ind[gl_WorkGroupSize.x * gl_LocalInvocationID.x + j] = -1;
-      }
-      memoryBarrierShared();
-      barrier();
-#endif
       a = calc_acceleration(p, gl_LocalInvocationID.x == 0);
     } else  {
       for (int k = 0; k < n; k++) {

@@ -105,8 +105,7 @@ class BarnesHutTree {
     }
   }
 
-  void postprocess(int i, int nex, const vector<glm::vec4> &pos,
-                   const vector<glm::vec4> &vel) {
+  void postprocess(int i, int nex) {
     next[i] = nex;
     if (!first_child[i]) {
 #ifdef DEBUG
@@ -126,7 +125,7 @@ class BarnesHutTree {
       int q = children[i][k];
       if (!q)
         continue;
-      postprocess(q, prev, pos, vel);
+      postprocess(q, prev);
       prev = q;
       const auto &child = com[q];
       com[i].x += child.x * child.w;
@@ -156,9 +155,10 @@ public:
   vector<int> first_child;
   vector<int> next;
 
+  vector<int> sorted;
+
   vector<int> reverse_arr;
   vector<vector<int>> indexes; // first pos, vertices out of bound
-  vector<int> sorted;
   BarnesHutTree() {}
   void set_damping(float d) { damping = d; }
   void set_sort(float s) { sort = s; }
@@ -166,8 +166,7 @@ public:
   void set_threshold(float th) { threshold = th; }
   void set_eps2(float e) { eps2 = e; }
   void set_eps(float e) { EPS = e; }
-  void create_tree(const vector<glm::vec4> &positions,
-                   const vector<glm::vec4> &velocities) {
+  void create_tree(const vector<glm::vec4> &positions) {
     int n = positions.size();
 
     lbf.clear();
@@ -225,11 +224,12 @@ public:
       }
       insert_node(0, pos, 1, i);
     }
-    postprocess(0, -1, positions, velocities);
-    if (sort)
+    postprocess(0, -1);
+    if (sort) {
       for (int j : indexes[0]) {
         sorted.push_back(j);
       }
+    }
   }
 
   vec3 calc_acceleration(const vec3 &pos) const {
@@ -253,7 +253,10 @@ public:
     float ma = 0;
     int n = pos.size();
     if (n2) {
-      for (int i = 0; i < n; i++) {
+      for (int x = 0; x < n; x++) {
+        int i = x;
+        if (sort)
+          i = sorted[i];
         vec3 a{0, 0, 0};
         for (int j = 0; j < n; j++) {
           a += interact(pos[i], pos[j], 1);

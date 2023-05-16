@@ -49,42 +49,46 @@ int main() {
     bhrenderer.set_view_proj(camera.get_view_proj());
 
     Value<glm::vec2> size(glm::vec2{w, h}, glm::vec2{w + 1, h});
-    Value<int> n(3, 3); // just a random value to not be equal
+    Value<int> n(50000, 50000); // just a random value to not be equal
     Value<int> tex_size(6, 5);
     Value<bool> sync(false, true);
     Value<float> sd(10.0, 10.0);
     Value<float> G(0.4, 0.3);
     Value<float> damping(9998.0, 123);
     Value<float> eps2(0.4, 123);
-    Value<float> threshold(0.5, 123);
-    Value<float> dt(0.005, 123);
+    Value<float> threshold(0.75, 123);
+    Value<float> dt(0.008, 123);
     Value<bool> interaction(false, false);
-    Value<bool> boxes(true, false);
+    Value<bool> boxes(false, true);
     Value<bool> red(false, true);
     Value<bool> gpu(true, true);
     Value<bool> n2(false, true);
     Value<bool> sort(true, false);
-    Value<float> eps(0.01, true);
+    Value<float> eps(0.1, true);
     bhtree.set_sort(sort);
 
     std::vector<glm::vec4> pos;
     std::vector<glm::vec4> vel;
 
     auto compute_tree = [&]() {
-      bhtree.create_tree(pos, vel);
+      bhtree.create_tree(pos);
+      if (!gpu)
+        return;
       if (!n2) {
         sizes.data(bhtree.sizes);
         com.data(bhtree.com);
         children.data(bhtree.first_child);
         next.data(bhtree.next);
-        sorted.data(bhtree.sorted);
+        if (sort)
+          sorted.data(bhtree.sorted);
 
         size_t size = bhtree.lbf.size();
         sizes.bind_shader_storage_buffer(2, size);
         com.bind_shader_storage_buffer(3, size);
         children.bind_shader_storage_buffer(4, size);
         next.bind_shader_storage_buffer(5, size);
-        sorted.bind_shader_storage_buffer(6, n);
+        if (sort)
+          sorted.bind_shader_storage_buffer(6, bhtree.sorted.size());
       }
     };
 
@@ -98,7 +102,8 @@ int main() {
       vel = initialize_vel(pos);
 
       if (gpu) {
-        positions->load(pos, GL_CLIENT_STORAGE_BIT | GL_MAP_READ_BIT);
+        positions->load(pos, GL_CLIENT_STORAGE_BIT | GL_MAP_READ_BIT |
+                                 GL_MAP_WRITE_BIT);
         velocities->load(vel);
       } else {
         positions->data(pos);
@@ -114,7 +119,7 @@ int main() {
     };
     init();
 
-    bool gui = false;
+    bool gui = true;
     resize_callback = [&](int _w, int _h) {
       app.get_sizes(w, h);
       size->x = w;
@@ -245,7 +250,7 @@ int main() {
         ImGui::Checkbox("O(n^2)", &n2);
         ImGui::Checkbox("Sort", &sort);
         ImGui::Checkbox("Interaction", &interaction);
-        ImGui::SliderInt("N", &n, 1, 100000);
+        ImGui::SliderInt("N", &n, 1, 200000);
       }
       static bool first = true;
       if (first) {

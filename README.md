@@ -21,6 +21,8 @@ http://arborjs.org/docs/barnes-hut
 
 ## Thread divergence
 
+https://iss.oden.utexas.edu/Publications/Papers/burtscher11.pdf
+
 ## Интегратор Leap-frog
 
 ## Недостатки

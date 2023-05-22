@@ -46,6 +46,11 @@ layout (binding = 6, std430) buffer sorted
   int sort[];
 };
 
+layout (binding = 8, std430) buffer accelerations
+{
+  vec4 acc[];
+};
+
 #ifdef CACHING
   #define CACHE_SIZE 2048
   shared int ind[CACHE_SIZE];
@@ -66,47 +71,51 @@ vec3 calc_acceleration(vec3 pos, bool first_thread) {
     int i = 0;
     vec3 acc = vec3(0);
     float th2 = threshold * threshold;
+
+    vec4 cm;
+    int ch;
+    float sz;
+    int nx;
+
     while (i != -1) {
+      bool cond;
+      do {
+        // int entry = i % CACHE_SIZE;
+        int entry = i & 2047;
 #ifdef CACHING
-      // int entry = i % CACHE_SIZE;
-      int entry = i & 2047;
-
-      vec4 cm;
-      int ch;
-      float sz;
-      int nx;
-
-      // TODO make it really atomic
-      if (first_thread) {
+        // TODO make it really atomic
+        if (first_thread) {
+          cm = com[i];
+          sz = sizes[i];
+          ch = chil[i];
+          nx = nex[i];
+          if (ind[entry] == -1) {
+            ccom[entry] = cm;
+            csizes[entry] = sz;
+            cchil[entry] = ch;
+            cnex[entry] = nx;
+            ind[entry] = i;
+          }
+        } else {
+          bool cond = ind[entry] == i;
+          cm = cond ? ccom[entry] : com[i];
+          sz = cond ? csizes[entry] : sizes[i];
+          ch = cond ? cchil[entry] : chil[i];
+          nx = cond ? cnex[entry] : nex[i];
+        }
+#else
         cm = com[i];
         sz = sizes[i];
         ch = chil[i];
         nx = nex[i];
-        if (ind[entry] == -1) {
-          ccom[entry] = cm;
-          csizes[entry] = sz;
-          cchil[entry] = ch;
-          cnex[entry] = nx;
-          ind[entry] = i;
-        }
-      } else {
-        bool cond = ind[entry] == i;
-        cm = cond ? ccom[entry] : com[i];
-        sz = cond ? csizes[entry] : sizes[i];
-        ch = cond ? cchil[entry] : chil[i];
-        nx = cond ? cnex[entry] : nex[i];
-      }
-#else
-      vec4 cm = com[i];
-      float sz = sizes[i];
-      int ch = chil[i];
-      int nx = nex[i];
 #endif
-      sz *= sz;
-      vec3 diff = cm.xyz - pos;
-      bool cond = ch == 0 || (sz / dot(diff, diff)) < th2;
-      acc += cond ? interact(cm.xyz, pos, cm.w) : vec3(0);
-      i = cond ? nx : ch;
+        sz *= sz;
+        vec3 diff = cm.xyz - pos;
+        cond = ch == 0 || (sz / dot(diff, diff)) < th2;
+        i = ch;
+      } while (!cond);
+      acc += interact(cm.xyz, pos, cm.w);
+      i = nx;
     }
     return acc;
 }
@@ -132,8 +141,11 @@ void main() {
     if (to_sort == 1)
       i = sort[i];
 
-    vec4 ps = pos[i];
-    vec3 p = ps.xyz;
+    vec3 prev_a = acc[i].xyz;
+    vec3 v = vel[i].xyz;
+    vec3 p = pos[i].xyz;
+
+    pos[i] = vec4(p + v * dt + 0.5 * prev_a * dt * dt, 1.0);
 
     vec3 a = vec3(0.0);
     if (n2 == 0) {
@@ -144,8 +156,8 @@ void main() {
         a += interact(b, p, 1);
       }
     }
+    a *= G;
 
-    vec3 v = vel[i].xyz;
-    vel[i] = vec4(v * damping + a * G * dt, 0);
-    pos[i] = vec4(p + v * dt, ps.w);
+    vel[i] = vec4(v * damping + 0.5 * (a + prev_a) * dt, 0);
+    acc[i] = vec4(a, 0.0);
 }

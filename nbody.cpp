@@ -37,6 +37,7 @@ int main() {
 
     std::unique_ptr<VBO<glm::vec4>> positions;
     std::unique_ptr<VBO<glm::vec4>> velocities;
+    std::unique_ptr<VBO<glm::vec4>> accelerations;
 
     VBO<float> sizes;
     VBO<glm::vec4> com;
@@ -95,23 +96,29 @@ int main() {
     auto init = [&]() {
       positions = std::make_unique<VBO<glm::vec4>>();
       velocities = std::make_unique<VBO<glm::vec4>>();
+      accelerations = std::make_unique<VBO<glm::vec4>>();
+
       float d;
       pos = initialize_pos(n, d);
       bhtree.set_domain(d * 3);
 
       vel = initialize_vel(pos);
 
+      vector<glm::vec4> acc(n, glm::vec4{0, 0, 0, 0});
       if (gpu) {
         positions->load(pos, GL_CLIENT_STORAGE_BIT | GL_MAP_READ_BIT |
                                  GL_MAP_WRITE_BIT);
         velocities->load(vel);
+        accelerations->load(acc);
       } else {
         positions->data(pos);
         velocities->data(vel);
+        accelerations->data(acc);
       }
 
       positions->bind_shader_storage_buffer(0, n);
       velocities->bind_shader_storage_buffer(1, n);
+      accelerations->bind_shader_storage_buffer(8, n);
 
       renderer.get_flare_renderer().get_vao().link_vbo(*positions, 0);
       renderer.get_flare_renderer().get_vao().link_vbo(*velocities, 1);

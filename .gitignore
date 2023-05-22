@@ -2,7 +2,11 @@ a.out
 imgui/build
 nbody.o
 .vscode/
+
 tex/**
+!tex/doc.tex
+!tex/ref.bib
+!tex/doc.pdf
 
 windows/glew-2.1.0/**
 windows/glm/**

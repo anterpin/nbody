@@ -1,6 +1,22 @@
 #include "./shader.h"
 #include <GL/glew.h>
 
+class Integration {
+  ShaderProgram program;
+
+public:
+  Integration() {
+    program.parse("./shaders/integr.comp");
+    program.link();
+  }
+  void set_dt(float dt) const { glProgramUniform1f(program.get_id(), 2, dt); }
+  void compute(size_t n) {
+    program.use();
+    glDispatchCompute(n / 256 + 1, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+  }
+};
+
 class Interaction {
   ShaderProgram program;
 

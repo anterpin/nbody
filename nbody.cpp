@@ -29,6 +29,7 @@ int main() {
     Camera camera(w, h, fov, near);
 
     Interaction inter;
+    Integration integration;
     Renderer renderer(w, h);
     renderer.get_flare_renderer().set_view_proj(camera.get_view_proj());
 
@@ -70,6 +71,7 @@ int main() {
 
     std::vector<glm::vec4> pos;
     std::vector<glm::vec4> vel;
+    std::vector<glm::vec4> acc;
 
     auto compute_tree = [&]() {
       bhtree.create_tree(pos);
@@ -104,7 +106,7 @@ int main() {
 
       vel = initialize_vel(pos);
 
-      vector<glm::vec4> acc(n, glm::vec4{0, 0, 0, 0});
+      acc = vector<glm::vec4>(n, glm::vec4{0, 0, 0, 0});
       if (gpu) {
         positions->load(pos, GL_CLIENT_STORAGE_BIT | GL_MAP_READ_BIT |
                                  GL_MAP_WRITE_BIT);
@@ -190,6 +192,7 @@ int main() {
 
       if (dt.has_changed()) {
         inter.set_dt(dt);
+        integration.set_dt(dt);
       }
       if (n2.has_changed()) {
         inter.set_n2(n2);
@@ -218,7 +221,7 @@ int main() {
 
       if (interaction) {
         if (gpu) {
-          inter.compute(n);
+          integration.compute(n);
           positions->get_data_from_gpu(pos);
           float ma = 0;
           for (int i = 0; i < n; i++) {
@@ -226,11 +229,16 @@ int main() {
           }
           bhtree.set_domain(ma * 3);
         } else {
-          bhtree.update_pos_and_velocities(pos, vel, G, dt, n2);
+          bhtree.update_positions(pos, vel, acc, dt);
+        }
+        compute_tree();
+        if (gpu) {
+          inter.compute(n);
+        } else {
+          bhtree.update_velocities(pos, vel, acc, G, dt, n2, damping / 10000.0);
           positions->data(pos);
           velocities->data(vel);
         }
-        compute_tree();
       }
 
       renderer.render(n);

@@ -247,9 +247,16 @@ public:
     }
     return acc;
   }
+  void update_positions(vector<glm::vec4> &pos, const vector<glm::vec4> &vel,
+                        const vector<glm::vec4> &acc, float dt) const {
+    for (int i = 0; i < pos.size(); i++) {
+      pos[i] += vel[i] * dt + 0.5f * acc[i] * dt * dt;
+    }
+  }
 
-  void update_pos_and_velocities(vector<glm::vec4> &pos, vector<glm::vec4> &vel,
-                                 float G, float dt, bool n2) {
+  void update_velocities(const vector<glm::vec4> &pos, vector<glm::vec4> &vel,
+                         vector<glm::vec4> &acc, float G, float dt, bool n2,
+                         float damping) {
     float ma = 0;
     int n = pos.size();
     if (n2) {
@@ -262,8 +269,8 @@ public:
           a += interact(pos[i], pos[j], 1);
         }
         a *= G;
-        vel[i] += glm::vec4(a * dt, 0);
-        pos[i] += vel[i] * dt;
+        vel[i] = vel[i] * damping + 0.5f * (acc[i] + glm::vec4(a, 0)) * dt;
+        acc[i] = glm::vec4(a, 0);
         ma = std::max(ma, max(pos[i]));
       }
       set_domain(ma * 3);
@@ -272,8 +279,8 @@ public:
     for (int i = 0; i < n; i++) {
       auto a = calc_acceleration(pos[i]);
       a *= G;
-      vel[i] += glm::vec4(a * dt, 0);
-      pos[i] += vel[i] * dt;
+      vel[i] = vel[i] * damping + 0.5f * (acc[i] + glm::vec4(a, 0)) * dt;
+      acc[i] = glm::vec4(a, 0);
       ma = std::max(ma, max(pos[i]));
     }
     set_domain(ma * 3);

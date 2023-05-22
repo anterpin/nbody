@@ -1,0 +1,35 @@
+#version 460
+layout (local_size_x = 256) in;
+
+layout (location = 2) uniform float dt;
+
+layout (binding = 0, std430) buffer positions
+{
+  vec4 pos[];
+};
+
+layout (binding = 1, std430) buffer velocities
+{
+  vec4 vel[];
+};
+
+
+layout (binding = 8, std430) buffer accelerations
+{
+  vec4 acc[];
+};
+
+
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    uint n = pos.length();
+    if (i >= n) {
+      return;
+    }
+    vec3 prev_a = acc[i].xyz;
+    vec3 v = vel[i].xyz;
+    vec3 p = pos[i].xyz;
+
+    pos[i] = vec4(p + v * dt + 0.5 * prev_a * dt * dt, 1.0);
+}

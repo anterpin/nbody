@@ -321,8 +321,8 @@ int main() {
 
           using sysclock_t = std::chrono::system_clock;
           std::time_t now = sysclock_t::to_time_t(sysclock_t::now());
-          char buf[16] = {0};
-          std::strftime(buf, sizeof(buf), "%Y-%m-%d", std::localtime(&now));
+          char buf[32] = {0};
+          std::strftime(buf, sizeof(buf), "%F-%H:%M:%S-", std::localtime(&now));
           std::stringstream ss;
           ss << "videos/" << buf << '-' << "vid.mp4";
           recorder = std::make_unique<Recorder>(nw, nh, ss.str());

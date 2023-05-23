@@ -245,7 +245,7 @@ public:
     glProgramUniform1i(tonemap.get_id(), 0, lod);
 
     attach = std::make_unique<Texture>();
-    attach->set(w, h, 1, GL_RGBA8, 0, 0, nullptr);
+    attach->set(w, h, 1, GL_RGB8, 0, 0, nullptr);
     fbo.attach_texture(*attach);
   }
 

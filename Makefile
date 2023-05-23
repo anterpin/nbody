@@ -1,11 +1,11 @@
 main:
-	g++ -c nbody.cpp
+	g++ -c nbody.cpp -Wall -g -lm -m64
 	g++ nbody.o ./imgui/build/*.o -lGLEW -lglfw -lGL
 release:
-	g++ -c nbody.cpp -O3
+	g++ -c nbody.cpp -O3 -m64
 	g++ nbody.o ./imgui/build/*.o -lGLEW -lglfw -lGL
 build:
-	cd ./imgui; g++ -c -O3 ./*.cpp
+	cd ./imgui; g++ -c -O3 ./*.cpp -m64
 	mkdir ./imgui/build
 	mv ./imgui/*.o ./imgui/build
 win:

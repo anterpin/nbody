@@ -1,5 +1,6 @@
 #include "./barnes-hut.h"
 #include "./camera.h"
+#include "./recorder.h"
 #include "./renderer.h"
 #include "./shader.h"
 #include "./simulation.h"
@@ -9,6 +10,8 @@
 #include <GLFW/glfw3.h>
 #include <chrono>
 #include <glm/ext/vector_float3.hpp>
+#include <memory>
+#include <sstream>
 
 std::function<void(int, int)> resize_callback;
 void resize_callback_wrap(GLFWwindow *win, int w, int h) {
@@ -51,6 +54,8 @@ int main() {
     bhrenderer.set_view_proj(camera.get_view_proj());
 
     Value<glm::vec2> size(glm::vec2{w, h}, glm::vec2{w + 1, h});
+    bool recording = false;
+    std::unique_ptr<Recorder> recorder;
     Value<int> n(50000, 50000); // just a random value to not be equal
     Value<int> tex_size(6, 5);
     Value<bool> sync(false, true);
@@ -163,6 +168,9 @@ int main() {
         camera.set_dimensions(w, h);
         renderer.set_dimensions(w, h);
         bhrenderer.set_dimensions(w, h);
+        if (recorder.get()) {
+          delete recorder.release();
+        }
       }
 
       camera.test_on_input();
@@ -245,6 +253,19 @@ int main() {
       if (boxes) {
         bhrenderer.render(bhtree, renderer.get_tone_renderer().get_fbo());
       }
+      if (recording) {
+        auto &fbo = renderer.get_tone_renderer().get_fbo();
+        fbo.bind();
+        size_t p_size = recorder->w * recorder->h * 3;
+        vector<uint8_t> pixels(p_size);
+        // opengl write outsize memory
+        // by default it is aligned to 4 bytes
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        glReadnPixels(0, 0, recorder->w, recorder->h, GL_RGB, GL_UNSIGNED_BYTE,
+                      p_size, pixels.data());
+        recorder->write(pixels.data(), pixels.size());
+        fbo.unbind();
+      }
 
       if (!gui) {
         const auto &tex = renderer.get_tone_renderer().get_texture();
@@ -293,6 +314,29 @@ int main() {
       ImGui::Text("Camera distance: %.3f", camera.get_distance());
       ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate,
                   io.Framerate);
+      if (!recording) {
+        if (ImGui::Button("Record")) {
+          int nw = size->x;
+          int nh = size->y;
+
+          using sysclock_t = std::chrono::system_clock;
+          std::time_t now = sysclock_t::to_time_t(sysclock_t::now());
+          char buf[16] = {0};
+          std::strftime(buf, sizeof(buf), "%Y-%m-%d", std::localtime(&now));
+          std::stringstream ss;
+          ss << "videos/" << buf << '-' << "vid.mp4";
+          recorder = std::make_unique<Recorder>(nw, nh, ss.str());
+          recording = true;
+        }
+      } else {
+        if (ImGui::Button("Stop")) {
+          if (recorder.get()) {
+            delete recorder.release();
+          }
+          recording = false;
+        }
+        ImGui::Text("Recording...");
+      }
 
       ImGui::End();
       ImGui::Begin("Main Window");

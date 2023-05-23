@@ -23,7 +23,7 @@ std::vector<glm::vec4> initialize_vel(const std::vector<glm::vec4> &pos) {
 
   std::vector<glm::vec4> arr;
   arr.reserve(pos.size());
-  for (int i = 0; i < pos.size(); i++) {
+  for (int i = 0; i < static_cast<int>(pos.size()); i++) {
     glm::vec3 vel = glm::cross(glm::vec3(pos[i]), glm::vec3(0, 1, 0));
     float orbital_vel = sqrt(2.0 * glm::length(vel));
     vel = glm::normalize(vel) * orbital_vel;

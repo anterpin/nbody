@@ -85,9 +85,6 @@ class BarnesHutTree {
         indexes[reverse_arr[i]].push_back(id);
         break;
       }
-
-      const float hw = sizes[i] / 2;
-
       int qa = get_subquadrant(lbf[i], sizes[i], com[i]);
       int qb = get_subquadrant(lbf[i], sizes[i], pos);
 

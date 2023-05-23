@@ -11,3 +11,5 @@ tex/**
 windows/glew-2.1.0/**
 windows/glm/**
 windows/glfw-3.3.8.bin.WIN64/**
+
+videos/**

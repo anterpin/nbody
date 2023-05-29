@@ -12,8 +12,9 @@
 \usepackage[nottoc,numbib]{tocbibind}
 \allowdisplaybreaks
 
+
 % ГОСТ 7.32—2017 
-\usepackage[paper=a4paper, left=2cm, right=1cm, top=3cm, bottom=2cm]{geometry}
+\usepackage[paper=a4paper, left=2cm, right=1.5cm, top=2cm, bottom=2cm]{geometry}
 \usepackage[fontsize=14pt]{fontsize}
 \setlength{\parindent}{0mm}
 
@@ -22,6 +23,12 @@
 \setsansfont{Noto Sans}
 \setmonofont{Noto Mono}
 \usepackage[russian]{babel}
+\addto\captionsrussian{
+  \renewcommand{\contentsname}{СОДЕРЖАНИЕ}
+  \renewcommand{\refname}{СПИСОК ЛИТЕРАТУРЫ}
+}
+
+
 
 \setcounter{secnumdepth}{0}
 
@@ -35,7 +42,7 @@
 % sections
 \usepackage{titlesec}
 \titleformat{\section}
-  {\normalfont\Large}{\thesection.}{1.4em}{}
+  {\center\normalfont\Large}{\thesection.}{1.4em}{}
 \titleformat{\subsection}
   {\normalfont\large}{\thesubsection.}{1.4em}{}
 % \usepackage{indentfirst}
@@ -43,6 +50,7 @@
 
 \renewcommand{\baselinestretch}{1.5} 
 \usepackage{minted}
+
 
 \usepackage{mdframed}
 \newenvironment{code}
@@ -56,6 +64,7 @@
   \end{mdframed} 
   }
 
+
 \begin{document}
 
 \tableofcontents
@@ -63,7 +72,8 @@
 
 % Гравитационная симуляция N тел
 
-\section{Гравитационная задача N тел}
+\pagebreak
+\section{ГРАВИТАЦИОННАЯ ЗАДАЧА N ТЕЛ}
 
 Гравитационная задача N тел является классической проблемой небесной механики и гравитационной динамики Ньютона.
 
@@ -71,7 +81,8 @@
 
 В пустоте находится $N$ материальных точек, массы которых известны $\{m_i\}$. Пусть попарное взаимодействие точек подчинено закону тяготения Ньютона, и пусть силы гравитации аддитивны. Пусть известны начальные на момент времени $\,t=0\,$ положения и скорости каждой точки $\mathbf{r}_i|_{t=0} = \mathbf{v}_{i0},\, \mathbf{v}_i|_{t=0} = \mathbf{v}_{i0}.$ Требуется найти положения точек для всех последующих моментов времени.
 
-\section{Числительные методы}
+\pagebreak
+\section{ЧИСЛИТЕЛЬНЫЕ МЕТОДЫ}
 
 Мы используем гравитационный потенциал для иллюстрации основной формы вычислений в моделировании всех пар N-тел. В следующих вычислениях мы используем жирный шрифт для обозначения векторов (обычно в 3D). Учитывая $N$ тел с начальным положением $\mathbf{x}_i$ и скоростью $\mathbf{v}_i$ для $ 1 \leqslant i \leqslant N$, вектор силы $\mathbf{f}_{ij}$ на теле $i$, вызванной его гравитационным притяжением к телу $j$, задается следующим образом:\\
 $$
@@ -112,7 +123,8 @@ vec3 interact(vec3 a, vec3 b, float m) {
 Интегратор, используемый для обновления положений и скоростей, является интегратором скачка \textit{Verlet}, поскольку он применим к данной задаче и является вычислительно эффективным (имеет высокое отношение точности к вычислительным затратам). Выбор метода интегрирования в задачах N-тел обычно зависит от природы изучаемой системы. Интегратор включен в наши тайминги, но обсуждение его реализации опущено, поскольку его сложность составляет $O(N)$ и он не влияет на общий производительность.
 
 
-\section{Интегратор Verlet}
+\pagebreak
+\section{ИНТЕГРАТОР VERLET}
 Интегрирование \textit{Verlet} --- это численный метод, используемый для интегрирования уравнений движения Ньютона. Он часто используется для расчета траекторий частиц при моделировании молекулярной динамики и в компьютерной графике.\\
 Интегратор \textit{Verlet} обеспечивает хорошую численную устойчивость, а также другие свойства, важные для физических систем, такие как обратимость во времени и сохранение симплектической формы на фазовом пространстве, без существенных дополнительных вычислительных затрат по сравнению с простым методом Эйлера.\\
 Если метод Эйлера использует прямое разностное приближение к первой производной в дифференциальных уравнениях первого порядка, то интегрирование Verlet можно рассматривать как использование центрального разностного приближения ко второй производной:\\
@@ -145,7 +157,8 @@ void calc_particle(int i, float dt) {
 }
 \end{code}
 
-\section{Алгоритм Barnes-Hut}
+\pagebreak
+\section{АЛГОРИТМ BARNES-HUT}
 \subsection{Основы алгоритма}
 Важнейшей идеей ускорения алгоритма грубой силы для $n$ тел является группировка близлежащих тел и аппроксимация их как одного единого тела.\\
 Если группа находится достаточно далеко, мы можем аппроксимировать её гравитационное воздействие, используя её центр масс.\\
@@ -287,7 +300,8 @@ vec3 calc_accelleration(vec3 pos) {
 }
 \end{code}
 
-\section{Расхождение потоков и кэширование}
+\pagebreak
+\section{РАСХОЖДЕНИЕ ПОТОКОВ И КЭШИРОВАНИЕ}
 \subsection{Расхождение потоков}
 
 Поскольку потоки, принадлежащие к одному и тому же \textit{warp}, выполняются в \textit{lockstep}, каждому \textit{warp} фактически приходится ждать прохождение префиксов дерева всех потоков в \textit{warp}. Другими словами, всякий раз, когда происходит какая-то развилка, которая не нужна некоторым из потоков, эти потоки из-за расхождения замораживаются, пока эта часть будет пройдена.\\
@@ -300,26 +314,21 @@ vec3 calc_accelleration(vec3 pos) {
 Есть один нюанс: быстрая память гораздо меньше, чем основная, для этого мы будем использовать \textit{hash table} где префикс \texttt{p = prefix \% TABLE\_SIZE} (конечно выполняется дополнительная проверка столкновения хэшей).\\
 К сожалению, наша имплементация не принесла значительных улучшений.
 
-\section{Производительность}
-\tikzset{
-  every point/.style = {circle, inner sep={.75\pgflinewidth}, opacity=1, draw, solid, fill=white},
-  point/.style={insert path={node[every point, #1]{}}}, point/.default={},
-  colored point/.style = {point={fill=#1}},
-  point name/.style = {insert path={coordinate (#1)}},
-  inherit/.style = {point/.style={insert path={node[circle, inner sep={.75\pgflinewidth}, draw, fill, #1]{}}}}
-}
-\begin{tikzpicture}
-  \begin{axis}[xmin=0, xmax=3, ymin=0, ymax=4, xlabel=$N$, ylabel=$\operatorname{ms}$, legend pos=north east, thick]
-    \draw [gray]  (0,0) -- (1,1) [point] -- (2,0.75)[point] -- (3,2) [point];
-            \addplot[domain=-10:-9, color=gray, samples=3] {3};
-            \addplot[color=blue, samples=100, domain=0:2*pi]({ 2*sqrt(2)*cos(deg(x)) }, { 3*sqrt(2)*sin(deg(x))});
-            \legend{$\beta$, $\alpha$}
-            \addplot [color=black, mark=*] coordinates {(2 * sqrt(2), 0)} node [below right=.8mm, scale=0.8]{$(2\sqrt{2}, 0)$};
-          \end{axis}
+\pagebreak
+\section{ПРОИЗВОДИТЕЛЬНОСТЬ}
+В это графике видно как оптимизация алгоритма \textit{Barnes Hut} сравнивается с алгоритмом грубой силой при росте количества тел $N$.\\
+Данны производительности были измеренны на NVIDIA GeForce RTX 3050 Laptop GPU, AMD Ryzen 5 5600H и $\theta = 0.75$.
 
-\end{tikzpicture}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{../images/gpu chart.png}
+  \caption {Производительность}
+  \label {fig:gpu chart}
+  
+\end{figure}
 
-\section{Недостатки и будущие оптимизации}
+\pagebreak
+\section{НЕДОСТАТКИ И БУДУЩИЕ ОПТИМИЗАЦИИ}
 По текущей имплементации, создание дерева просходит на CPU и передаётся на GPU, при каждом шаге симуляции.\\
 После компьютации новых положений частиц, новые точки передаются обратно на CPU для создания нового дерева.\\
 Есть алгоритмы, которые создают дерево на GPU, обходя постоянный обмен данных между CPU и GPU.\\

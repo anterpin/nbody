@@ -36,11 +36,11 @@
 
 ![galaxy](./images/example.gif)
 
-### Образования кластеров
+### Образование кластеров
 
 ![clusters](./images/clusters.gif)
 
-## Примечание
+## Примечания
 
 Графика похоже к друой симуляции N тел:
 https://github.com/salel/nbody/
